@@ -1,3 +1,5 @@
+import readline from 'node:readline/promises';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { Command, InvalidArgumentError } from 'commander';
@@ -27,6 +29,13 @@ import {
 import { describeConfig, onboard, setup } from './onboard.js';
 import { c, relativeTime, setColor, statusDot, table } from './palette.js';
 import { runTui } from './tui.js';
+import {
+  createBackup,
+  formatSize,
+  listBackups,
+  pruneBackups,
+  restoreBackup,
+} from './backup.js';
 
 export interface CliIO {
   out: (line: string) => void;
@@ -154,7 +163,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         ['state dir', status.stateDir],
         [
           'config',
-          `${status.configPath} ${status.configValid ? c.success('valid') : c.error('invalid')}`,
+          `${status.configPath} ${status.configValid ? c.info('valid') : c.error('invalid')}`,
         ],
         ['sessions', `${status.sessions} (main: ${status.mainSessionKey})`],
         ['connections', String(status.connections)],
@@ -261,7 +270,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         cmd,
         health,
         () =>
-          `${statusDot(health.ok)} ${health.ok ? c.success('healthy') : c.error('unhealthy')} · v${health.version} · up ${formatDuration(health.uptimeMs)}`,
+          `${statusDot(health.ok)} ${health.ok ? c.info('healthy') : c.error('unhealthy')} · v${health.version} · up ${formatDuration(health.uptimeMs)}`,
       );
     });
 
@@ -428,7 +437,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       const r = await withClient(cmd, (client) =>
         client.request<{ sessionId: string }>('sessions.reset', { key }),
       );
-      emit(cmd, r, () => `${c.success('reset')} ${key} → ${r.sessionId}`);
+      emit(cmd, r, () => `${c.info('reset')} ${key} → ${r.sessionId}`);
     });
 
   sessions
@@ -443,7 +452,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         }),
       );
       emit(cmd, r, () =>
-        r.deleted ? `${c.success('deleted')} ${key}` : c.muted(`no such session: ${key}`),
+        r.deleted ? `${c.info('deleted')} ${key}` : c.muted(`no such session: ${key}`),
       );
     });
 
@@ -572,7 +581,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
           code: code.toUpperCase(),
         }),
       );
-      emit(cmd, r, () => `${c.success('paired')} ${channel}:${r.userId}`);
+      emit(cmd, r, () => `${c.info('paired')} ${channel}:${r.userId}`);
     });
 
   pairing
@@ -586,7 +595,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         }),
       );
       emit(cmd, r, () =>
-        r.rejected ? `${c.success('rejected')} ${code}` : c.muted('no such pairing code'),
+        r.rejected ? `${c.info('rejected')} ${code}` : c.muted('no such pairing code'),
       );
     });
 
@@ -597,7 +606,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       const r = await withClient(cmd, (client) =>
         client.request('channels.allow.remove', { channel, userId }),
       );
-      emit(cmd, r, () => `${c.success('revoked')} ${channel}:${userId}`);
+      emit(cmd, r, () => `${c.info('revoked')} ${channel}:${userId}`);
     });
 
   // ---- devices ---------------------------------------------------------------------------------
@@ -648,7 +657,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       const r = await withClient(cmd, (client) =>
         client.request<{ deviceId: string }>('device.pair.approve', { requestId }),
       );
-      emit(cmd, r, () => `${c.success('approved')} ${r.deviceId}`);
+      emit(cmd, r, () => `${c.info('approved')} ${r.deviceId}`);
     });
 
   devices
@@ -659,7 +668,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         client.request<{ rejected: boolean }>('device.pair.reject', { requestId }),
       );
       emit(cmd, r, () =>
-        r.rejected ? `${c.success('rejected')} ${requestId}` : c.muted('no such request'),
+        r.rejected ? `${c.info('rejected')} ${requestId}` : c.muted('no such request'),
       );
     });
 
@@ -671,7 +680,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         client.request<{ removed: boolean }>('device.pair.remove', { deviceId }),
       );
       emit(cmd, r, () =>
-        r.removed ? `${c.success('removed')} ${deviceId}` : c.muted('no such device'),
+        r.removed ? `${c.info('removed')} ${deviceId}` : c.muted('no such device'),
       );
     });
 
@@ -744,7 +753,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         cmd,
         r,
         () =>
-          `${c.success('added')} ${r.jobId} ${r.name} — next ${relativeTime(r.state.nextRunAtMs)}`,
+          `${c.info('added')} ${r.jobId} ${r.name} — next ${relativeTime(r.state.nextRunAtMs)}`,
       );
     });
 
@@ -753,7 +762,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
     .description('delete a cron job')
     .action(async (jobId: string, _opts: Opts, cmd: Command) => {
       const r = await withClient(cmd, (client) => client.request('cron.remove', { jobId }));
-      emit(cmd, r, () => `${c.success('removed')} ${jobId}`);
+      emit(cmd, r, () => `${c.info('removed')} ${jobId}`);
     });
 
   for (const [verb, enabled] of [
@@ -767,7 +776,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
         const r = await withClient(cmd, (client) =>
           client.request('cron.update', { jobId, patch: { enabled } }),
         );
-        emit(cmd, r, () => `${c.success(`${verb}d`)} ${jobId}`);
+        emit(cmd, r, () => `${c.info(`${verb}d`)} ${jobId}`);
       });
   }
 
@@ -776,7 +785,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
     .description('run a cron job now')
     .action(async (jobId: string, _opts: Opts, cmd: Command) => {
       const r = await withClient(cmd, (client) => client.request('cron.run', { jobId }, 600_000));
-      emit(cmd, r, () => `${c.success('ran')} ${jobId}`);
+      emit(cmd, r, () => `${c.info('ran')} ${jobId}`);
     });
 
   cron
@@ -826,7 +835,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
                 s.disabled
                   ? c.muted('disabled')
                   : s.eligible
-                    ? c.success('ready')
+                    ? c.info('ready')
                     : c.warn(missingSummary(s)),
                 s.description.slice(0, 60),
               ]),
@@ -870,7 +879,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
     .description('enable a skill')
     .action(async (name: string, _opts: Opts, cmd: Command) => {
       await withClient(cmd, (client) => client.request('skills.update', { name, enabled: true }));
-      io.out(`${c.success('enabled')} ${name}`);
+      io.out(`${c.info('enabled')} ${name}`);
     });
 
   skills
@@ -878,98 +887,89 @@ export function createProgram(io: CliIO = defaultIO): Command {
     .description('disable a skill')
     .action(async (name: string, _opts: Opts, cmd: Command) => {
       await withClient(cmd, (client) => client.request('skills.update', { name, enabled: false }));
-      io.out(`${c.success('disabled')} ${name}`);
+      io.out(`${c.info('disabled')} ${name}`);
     });
 
   // ---- approvals -------------------------------------------------------------------------------
-  const approvals = program.command('approvals').description('shell command approvals');
 
-  approvals
-    .command('get', { isDefault: true })
-    .description('show the approval policy and allowlist')
-    .action(async (_opts: Opts, cmd: Command) => {
-      const data = await withClient(cmd, (client) =>
-        client.request<ApprovalsFile>('exec.approvals.get'),
-      );
-      emit(cmd, data, () => {
-        const agents = Object.entries(data.file.agents);
-        return [
-          table([
-            ['file', data.path],
-            ['security', data.file.defaults.security],
-            ['ask', data.file.defaults.ask],
-            ['ask fallback', data.file.defaults.askFallback],
-            ['auto-allow read-only', data.file.defaults.autoAllowSafe ? 'yes' : 'no'],
-            ['ask timeout', `${data.file.defaults.timeoutSeconds}s`],
-          ]),
-          '',
-          agents.length
-            ? agents
-                .map(
-                  ([id, a]) =>
-                    `${c.bold(id)}\n${a.allowlist.map((entry) => `  ${entry.pattern}`).join('\n') || c.muted('  (no patterns)')}`,
-                )
-                .join('\n')
-            : c.muted('no per-agent allowlists'),
-        ].join('\n');
-      });
+  // ---- backup -----------------------------------------------------------------------------------
+  const backup = program
+    .command('backup')
+    .description('create, list, restore, and prune state backups');
+
+  backup
+    .command('create')
+    .description('create a new backup tarball')
+    .option('--output <dir>', 'output directory (default: <state>/backups)')
+    .option('--keep <n>', 'delete older backups, keeping the N most recent', (v: string) => Number(v))
+    .action(async function (this: Command, opts: { output?: string; keep?: number }) {
+      try {
+        const file = await createBackup({ outputDir: opts.output });
+        io.out(c.info(`backup created: ${file}`));
+        if (opts.keep && opts.keep > 0) {
+          const removed = await pruneBackups(opts.keep);
+          if (removed.length) io.out(c.info(`pruned ${removed.length} old backup(s)`));
+        }
+      } catch (e) {
+        io.err(`backup create failed: ${(e as Error).message}`);
+        process.exit(1);
+      }
     });
 
-  approvals
-    .command('pending')
-    .description('list approval requests waiting for an answer')
-    .action(async (_opts: Opts, cmd: Command) => {
-      const data = await withClient(cmd, (client) =>
-        client.request<{ pending: PendingApproval[] }>('exec.approval.list'),
-      );
-      emit(cmd, data, () =>
-        data.pending.length === 0
-          ? c.muted('nothing waiting for approval')
-          : table(
-              data.pending.map((p) => [
-                p.id.slice(0, 8),
-                p.request.command,
-                p.request.risk.level,
-                relativeTime(p.createdAtMs),
-              ]),
-              ['ID', 'COMMAND', 'RISK', 'ASKED'],
-            ),
-      );
+  backup
+    .command('list')
+    .description('list existing backups')
+    .action(async function (this: Command) {
+      const all = await listBackups();
+      if (all.length === 0) {
+        io.out(c.info('no backups yet — run `openpulse backup create`'));
+        return;
+      }
+      for (const b of all) {
+        const when = new Date(b.createdAt).toLocaleString();
+        io.out(c.info(`${path.basename(b.file)}  ·  ${formatSize(b.sizeBytes)}  ·  ${when}`));
+      }
     });
 
-  approvals
-    .command('resolve <id> <decision>')
-    .description('answer a pending approval (allow-once | allow-always | deny)')
-    .action(async (id: string, decision: string, _opts: Opts, cmd: Command) => {
-      if (!['allow-once', 'allow-always', 'deny'].includes(decision))
-        throw new CliError('decision must be allow-once, allow-always or deny');
-      await withClient(cmd, (client) => client.request('exec.approval.resolve', { id, decision }));
-      io.out(`${c.success(decision)} ${id}`);
+  backup
+    .command('restore <file>')
+    .description('restore from a backup tarball (moves current state aside first)')
+    .option('-y, --yes', 'skip the confirmation prompt')
+    .action(async function (this: Command, file: string, opts: { yes?: boolean }) {
+      if (!opts.yes) {
+        io.out(c.warn('This will move your current state aside and replace it with the backup.'));
+        io.out(c.warn('The current state will be saved to <state>.pre-restore-<timestamp>.'));
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const answer = (await rl.question('Proceed? [y/N] ')).trim().toLowerCase();
+        rl.close();
+        if (answer !== 'y' && answer !== 'yes') {
+          io.out(c.info('cancelled'));
+          return;
+        }
+      }
+      try {
+        const { restoredFrom, savedTo } = await restoreBackup(path.resolve(file));
+        io.out(c.info(`restored from ${restoredFrom}`));
+        io.out(c.info(`previous state saved to ${savedTo}`));
+        io.out(c.warn('Restart the gateway for the restored config to take effect.'));
+      } catch (e) {
+        io.err(`restore failed: ${(e as Error).message}`);
+        process.exit(1);
+      }
     });
 
-  approvals
-    .command('allow <pattern>')
-    .description('add a glob to the agent allowlist, e.g. "git status*"')
-    .option('--agent <id>', 'agent id', 'main')
-    .action(async (pattern: string, opts: Opts, cmd: Command) => {
-      const data = await withClient(cmd, async (client) => {
-        const current = await client.request<ApprovalsFile>('exec.approvals.get');
-        const agent = String(opts.agent);
-        const allowlist = current.file.agents[agent]?.allowlist ?? [];
-        if (allowlist.some((entry) => entry.pattern === pattern)) return current;
-        return client.request<ApprovalsFile>('exec.approvals.set', {
-          file: {
-            ...current.file,
-            agents: {
-              ...current.file.agents,
-              [agent]: {
-                allowlist: [...allowlist, { id: randomBytes(4).toString('hex'), pattern }],
-              },
-            },
-          },
-        });
-      });
-      emit(cmd, data, () => `${c.success('allowed')} ${pattern}`);
+  backup
+    .command('prune')
+    .description('delete old backups, keeping the N most recent')
+    .requiredOption('--keep <n>', 'number of backups to keep', (v: string) => Number(v))
+    .action(async function (this: Command, opts: { keep: number }) {
+      const removed = await pruneBackups(opts.keep);
+      if (removed.length === 0) {
+        io.out(c.info(`nothing to prune — fewer than ${opts.keep} backups exist`));
+        return;
+      }
+      for (const f of removed) io.out(c.info(`deleted ${path.basename(f)}`));
+      io.out(c.info(`pruned ${removed.length} backup(s)`));
     });
 
   // ---- config ----------------------------------------------------------------------------------
@@ -1000,7 +1000,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       const r = await withClient(cmd, (client) =>
         client.request<{ valid: boolean }>('config.patch', { path: dotted, value: parsed }),
       );
-      emit(cmd, r, () => `${c.success('set')} ${dotted} = ${JSON.stringify(parsed)}`);
+      emit(cmd, r, () => `${c.info('set')} ${dotted} = ${JSON.stringify(parsed)}`);
     });
 
   config
@@ -1010,7 +1010,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       const r = await withClient(cmd, (client) =>
         client.request('config.patch', { path: dotted, value: null }),
       );
-      emit(cmd, r, () => `${c.success('unset')} ${dotted}`);
+      emit(cmd, r, () => `${c.info('unset')} ${dotted}`);
     });
 
   config
@@ -1028,7 +1028,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       await withClient(cmd, (client) =>
         client.request('send', { channel, to, message: text.join(' ') }),
       );
-      io.out(`${c.success('sent')} → ${channel}:${to}`);
+      io.out(`${c.info('sent')} → ${channel}:${to}`);
     });
 
   // ---- system / heartbeat ----------------------------------------------------------------------
@@ -1079,7 +1079,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       .description(`${verb} heartbeats`)
       .action(async (_opts: Opts, cmd: Command) => {
         await withClient(cmd, (client) => client.request('set-heartbeats', { enabled }));
-        io.out(c.success(`heartbeats ${verb}d`));
+        io.out(c.info(`heartbeats ${verb}d`));
       });
   }
 
@@ -1090,7 +1090,7 @@ export function createProgram(io: CliIO = defaultIO): Command {
       await withClient(cmd, (client) =>
         client.request('wake', { ...(text?.length && { text: text.join(' ') }) }),
       );
-      io.out(c.success('woken'));
+      io.out(c.info('woken'));
     });
 
   // ---- logs ------------------------------------------------------------------------------------
