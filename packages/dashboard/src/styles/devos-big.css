@@ -1,0 +1,455 @@
+/* ============================================================================
+   OpenPulse — decisive scale
+   Larger type, generous space, crisp weights. Loaded last.
+   ========================================================================= */
+
+/* ---------------------------------------------------------- root scale */
+html { font-size: 16px; }
+
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 40px;
+  --sp-8: 48px;
+  --sp-10: 64px;
+  --topbar-h: 60px;
+  --sidebar-w: 18rem;
+}
+
+/* ---------------------------------------------------------- typography */
+body,
+button,
+input,
+select,
+textarea {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+  font-optical-sizing: auto;
+  letter-spacing: -0.011em !important;
+}
+
+body {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  font-weight: 400 !important;
+}
+
+code, pre, .mono, kbd {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  letter-spacing: -0.005em !important;
+}
+
+/* ---------------------------------------------------------- shell */
+.shell {
+  grid-template-rows: var(--topbar-h) 1fr !important;
+  grid-template-columns: var(--sidebar-w) 1fr !important;
+}
+
+/* ---------------------------------------------------------- topbar */
+.topbar {
+  height: var(--topbar-h) !important;
+  padding: 0 32px !important;
+  gap: 24px !important;
+}
+
+.brand {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.16em !important;
+  gap: 12px !important;
+}
+
+.brand .mark {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 7px !important;
+}
+
+.brand .sub {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.14em !important;
+}
+
+.topbar .pill { font-size: 11.5px !important; padding: 5px 12px !important; }
+.topbar .mono.faint { font-size: 11.5px !important; }
+
+/* ---------------------------------------------------------- sidebar */
+.sidebar {
+  padding: 28px 14px 64px !important;
+}
+
+.nav-group { margin-bottom: 32px !important; }
+.nav-group:last-child { margin-bottom: 0 !important; }
+
+.nav-group h4 {
+  padding: 0 16px !important;
+  margin: 0 0 14px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+  color: var(--text-faint) !important;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.nav-item {
+  height: 44px !important;
+  padding: 0 16px !important;
+  margin: 3px 0 !important;
+  border-radius: 11px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  gap: 14px !important;
+}
+
+.nav-item > span[aria-hidden] {
+  width: 20px !important;
+  font-size: 14px !important;
+  opacity: 0.55;
+}
+
+.nav-item:hover > span[aria-hidden],
+.nav-item[aria-current='page'] > span[aria-hidden] {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------- main */
+.main {
+  padding: 56px 64px 120px !important;
+}
+
+/* ---------------------------------------------------------- page header */
+.page-head {
+  margin-bottom: 40px !important;
+  gap: 20px !important;
+  align-items: baseline !important;
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  font-size: 2.25rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.035em !important;
+  line-height: 1.1 !important;
+  color: var(--text) !important;
+  margin: 0 !important;
+}
+
+.page-head p {
+  font-size: 15px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.011em !important;
+  color: var(--text-faint) !important;
+  margin: 0 !important;
+}
+
+.page-head .actions { gap: 12px !important; }
+
+/* ---------------------------------------------------------- cards */
+.card {
+  padding: 36px 40px !important;
+  border-radius: 20px !important;
+}
+
+.card + .card { margin-top: 32px !important; }
+
+.card > h3 {
+  margin-bottom: 32px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.22em !important;
+  color: var(--text-faint) !important;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------- stats grid */
+.grid {
+  gap: 32px !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+}
+
+.grid .card { padding: 32px 36px !important; }
+
+.stat { gap: 10px !important; }
+
+.stat .label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+  color: var(--text-faint) !important;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.stat .value {
+  font-size: 2.5rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.05 !important;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+.stat .value[data-compact] {
+  font-size: 1.75rem !important;
+  letter-spacing: -0.03em !important;
+}
+
+.stat .hint {
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  color: var(--text-faint) !important;
+  letter-spacing: -0.008em;
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------- buttons */
+button.btn {
+  height: 42px !important;
+  padding: 0 22px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.008em !important;
+  border-radius: 11px !important;
+}
+
+button.btn.primary { font-weight: 600 !important; padding: 0 24px !important; }
+
+button.icon {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 11px !important;
+  font-size: 15px !important;
+}
+
+/* ---------------------------------------------------------- inputs */
+input[type='text'],
+input[type='password'],
+input[type='number'],
+select {
+  height: 44px !important;
+  padding: 0 18px !important;
+  font-size: 14.5px !important;
+  border-radius: 11px !important;
+  letter-spacing: -0.008em !important;
+}
+
+textarea {
+  padding: 14px 18px !important;
+  font-size: 14.5px !important;
+  line-height: 1.6 !important;
+  border-radius: 11px !important;
+  letter-spacing: -0.008em !important;
+}
+
+label.field { margin-bottom: 28px !important; }
+
+label.field > span {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase;
+  color: var(--text-faint) !important;
+  margin-bottom: 12px !important;
+}
+
+/* ---------------------------------------------------------- tables */
+table.rows { font-size: 14px !important; }
+
+table.rows th {
+  padding: 0 24px 20px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+  color: var(--text-faint) !important;
+  text-transform: uppercase;
+}
+
+table.rows td {
+  padding: 20px 24px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  letter-spacing: -0.008em !important;
+  color: var(--text-dim) !important;
+}
+
+table.rows td:first-child {
+  color: var(--text) !important;
+  font-weight: 550 !important;
+}
+
+/* ---------------------------------------------------------- pills */
+.pill {
+  padding: 5px 14px !important;
+  font-size: 11.5px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.1em !important;
+  border-radius: 999px !important;
+}
+
+.pill .dot { width: 8px !important; height: 8px !important; }
+
+/* ---------------------------------------------------------- chat */
+.chat {
+  grid-template-columns: 18rem 1fr !important;
+  gap: 28px !important;
+  height: calc(100vh - var(--topbar-h) - 5rem) !important;
+}
+
+.chat-sessions { padding: 16px !important; border-radius: 20px !important; }
+
+.chat-session {
+  padding: 14px 16px !important;
+  margin-bottom: 4px !important;
+  border-radius: 11px !important;
+  font-size: 14px !important;
+  letter-spacing: -0.008em !important;
+  min-height: 56px !important;
+}
+
+.chat-session small {
+  font-size: 11.5px !important;
+  margin-top: 4px !important;
+  opacity: 0.7;
+}
+
+.chat-main { border-radius: 20px !important; }
+
+.chat-head {
+  padding: 18px 28px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.008em;
+  gap: 16px !important;
+  min-height: 64px !important;
+}
+
+.chat-log {
+  padding: 40px 44px 32px !important;
+  gap: 28px !important;
+}
+
+.msg { max-width: 60rem !important; gap: 10px !important; }
+
+.msg .who {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.22em !important;
+  color: var(--text-faint) !important;
+  margin-bottom: 4px !important;
+}
+
+.msg .bubble {
+  padding: 20px 24px !important;
+  border-radius: 16px !important;
+  font-size: 15px !important;
+  line-height: 1.7 !important;
+  letter-spacing: -0.008em !important;
+}
+
+.msg.user .bubble { border-radius: 16px 16px 6px 16px !important; }
+.msg:not(.user) .bubble { border-radius: 16px 16px 16px 6px !important; }
+
+/* reasoning trace */
+.msg .bubble .thinking,
+.thinking {
+  font-size: 13.5px !important;
+  line-height: 1.65 !important;
+  color: var(--text-faint) !important;
+  font-style: normal !important;
+  letter-spacing: -0.005em;
+  opacity: 0.85;
+}
+
+/* ---------------------------------------------------------- tool cards */
+.tool-card { border-radius: 14px !important; margin: 6px 0 !important; }
+
+.tool-card summary {
+  padding: 16px 20px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  gap: 12px !important;
+}
+
+.tool-card pre {
+  font-size: 13px !important;
+  line-height: 1.7 !important;
+  padding: 18px 22px !important;
+}
+
+/* ---------------------------------------------------------- composer */
+.composer { padding: 20px 32px !important; gap: 14px !important; }
+
+.composer textarea {
+  min-height: 48px !important;
+  max-height: 260px !important;
+  padding: 14px 18px !important;
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+  border-radius: 14px !important;
+}
+
+.composer button.btn {
+  height: 48px !important;
+  padding: 0 26px !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
+}
+
+/* ---------------------------------------------------------- empty + misc */
+.empty {
+  padding: 80px 32px !important;
+  font-size: 14px !important;
+  letter-spacing: -0.008em;
+  color: var(--text-faint) !important;
+  font-style: normal !important;
+  opacity: 0.85;
+  line-height: 1.7 !important;
+}
+
+.toast {
+  padding: 20px 24px !important;
+  font-size: 14px !important;
+  border-radius: 14px !important;
+  max-width: 32rem !important;
+  line-height: 1.6 !important;
+}
+
+.kv { font-size: 14.5px !important; gap: 14px 32px !important; }
+
+.kv dt {
+  font-size: 11px !important;
+  letter-spacing: 0.16em !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+}
+
+pre.mono, .editor {
+  font-size: 13.5px !important;
+  line-height: 1.7 !important;
+  padding: 20px 24px !important;
+  border-radius: 14px !important;
+}
+
+/* ---------------------------------------------------------- responsive */
+@media (max-width: 1200px) {
+  .main { padding: 40px 40px 96px !important; }
+  .page-head h1 { font-size: 1.85rem !important; }
+  .stat .value { font-size: 2rem !important; }
+  .card { padding: 28px 32px !important; }
+}
+
+@media (max-width: 900px) {
+  .main { padding: 32px 24px 64px !important; }
+  .page-head h1 { font-size: 1.65rem !important; }
+  .card { padding: 24px !important; }
+  .chat-log { padding: 24px !important; }
+  .chat-head { padding: 14px 18px !important; }
+  .composer { padding: 14px 18px !important; }
+}

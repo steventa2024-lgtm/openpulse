@@ -74,3 +74,17 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# OpenPulse local runtime data — never commit
+.openpulse/
+openpulse.json
+exec-approvals.json
+vault.key
+*.db
+*.db-shm
+*.db-wal
+cron/jobs.json
+agents/*/sessions/
+devices.json
+identity/
+credentials/
