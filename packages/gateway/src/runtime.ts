@@ -17,6 +17,7 @@ import { LogSink, type LogRecord, type Logger } from './infra/logger.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
+import { RoutesStore } from './sessions/routes.js';
 import { readTranscript, textOf } from './sessions/transcript.js';
 import { BUNDLED_SKILLS_DIR } from './skills/bundled.js';
 import {
@@ -55,6 +56,7 @@ export class Runtime {
   readonly pairing: PairingStore;
   readonly devices: DeviceStore;
   readonly sessions: SessionStore;
+  readonly routes: RoutesStore;
   readonly processes = new ProcessRegistry();
   readonly browser: BrowserSession;
   readonly runner: AgentRunner;
@@ -79,6 +81,8 @@ export class Runtime {
     this.pairing = new PairingStore(this.paths.credentialsDir);
     this.devices = new DeviceStore(this.paths.devicesDir);
     this.sessions = new SessionStore(this.paths.sessionsDir(this.agentId));
+    // routes.json lives at the state root (next to openpulse.json), not per-agent.
+    this.routes = new RoutesStore(this.paths.stateDir);
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -182,6 +186,7 @@ export class Runtime {
       config: () => this.cfg,
       agent: this.agent,
       sessions: this.sessions,
+      routes: this.routes,
       pairing: this.pairing,
       approvals: this.approvals,
       log: this.logs.logger('channels'),

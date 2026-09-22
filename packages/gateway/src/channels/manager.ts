@@ -8,6 +8,7 @@ import type { OpenPulseConfig } from '../config/schema.js';
 import type { Logger } from '../infra/logger.js';
 import { resolveSessionKey } from '../sessions/keys.js';
 import type { SessionStore } from '../sessions/store.js';
+import type { RoutesStore } from '../sessions/routes.js';
 import type { PairingStore } from './pairing-store.js';
 import { TelegramChannel } from './telegram.js';
 import type { ChannelContext, ChannelPlugin, ChannelStatus, InboundMessage } from './types.js';
@@ -16,6 +17,7 @@ export interface ChannelManagerDeps {
   config: () => OpenPulseConfig;
   agent: AgentService;
   sessions: SessionStore;
+  routes: RoutesStore;
   pairing: PairingStore;
   approvals: ExecApprovals;
   log: Logger;
@@ -126,6 +128,7 @@ export class ChannelManager {
       onInbound: (m) => this.onInbound(m),
       config: this.deps.config,
       pairing: this.deps.pairing,
+      routes: this.deps.routes,
       approvals: this.deps.approvals,
       log: this.deps.log,
     };
@@ -177,7 +180,12 @@ export class ChannelManager {
       if ((groupCfg?.requireMention ?? true) && !m.mentioned) return;
     }
 
-    const sessionKey = resolveSessionKey(
+    // A chat can be pinned to a named session via routes.json.
+    // If set, that wins over the dmScope-based resolution.
+    const chatIdForRoute = m.chatType === 'dm' ? m.senderId : m.chatId;
+    const routed = await this.deps.routes.get(m.channel, chatIdForRoute);
+
+    const sessionKey = routed ?? resolveSessionKey(
       {
         channel: m.channel,
         peerKind: m.chatType,

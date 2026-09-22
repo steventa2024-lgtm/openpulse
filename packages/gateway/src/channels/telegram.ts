@@ -256,6 +256,9 @@ export class TelegramChannel implements ChannelPlugin {
         ...(isGroup &&
           m.message_thread_id !== undefined && { threadId: String(m.message_thread_id) }),
       };
+      // /session commands are handled locally, never passed to the agent.
+      if (await this.handleSessionCommand(ctx, inbound)) return;
+
       await ctx.onInbound(inbound);
     } catch (error) {
       ctx.log.error(`telegram update ${update.update_id} failed: ${(error as Error).message}`);
@@ -285,6 +288,69 @@ export class TelegramChannel implements ChannelPlugin {
       callback_query_id: q.id,
       text: ok ? decision : 'Already decided.',
     });
+  }
+
+  /**
+   * Intercepts /session commands before they reach the agent.
+   * Returns true if the message was a session command and has been handled.
+   */
+  private async handleSessionCommand(
+    ctx: ChannelContext,
+    m: InboundMessage,
+  ): Promise<boolean> {
+    const text = m.text.trim();
+    if (!text.startsWith('/session')) return false;
+
+    const reply = async (body: string) => {
+      const to = m.threadId ? `${m.chatId}:topic:${m.threadId}` : m.chatId;
+      await this.send(to, body).catch(() => undefined);
+    };
+
+    const parts = text.split(/\s+/);
+    const sub = parts[1]?.trim();
+
+    const named = ctx.config().session.named ?? {};
+    const chatKey = m.chatType === 'dm' ? m.senderId : m.chatId;
+    const current = await ctx.routes.get(this.id, chatKey);
+
+    // /session (no arg) — show list + current
+    if (!sub) {
+      const list = Object.entries(named);
+      const lines = ['📚 Sessions'];
+      lines.push(`· main — default`);
+      for (const [slug, cfg] of list) {
+        const label = cfg.label ?? slug;
+        const key = `agent:main:s:${slug}`;
+        const marker = current === key ? ' ← current' : '';
+        lines.push(`· ${slug} — ${label}${marker}`);
+      }
+      if (current) lines.push(`\nCurrent: ${current}`);
+      else lines.push(`\nCurrent: main (default)`);
+      lines.push(`\nUse: /session <slug> to switch, /session main to reset.`);
+      await reply(lines.join('\n'));
+      return true;
+    }
+
+    // /session main — clear route
+    if (sub === 'main' || sub === 'default') {
+      await ctx.routes.set(this.id, chatKey, undefined);
+      await reply('↩️ Switched back to the main session.');
+      return true;
+    }
+
+    // /session <slug> — validate against config
+    const slug = sub.toLowerCase();
+    if (!(slug in named)) {
+      const known = Object.keys(named).join(', ') || '(none configured)';
+      await reply(`❌ Unknown session "${slug}".\nKnown: main, ${known}`);
+      return true;
+    }
+
+    const sessionKey = `agent:main:s:${slug}`;
+    await ctx.routes.set(this.id, chatKey, sessionKey);
+    const label = named[slug]?.label ?? slug;
+    await reply(`✅ Switched to *${label}* (${slug}).\nMessages in this chat now go to that session.`);
+    return true;
   }
 
   private async poll(signal: AbortSignal): Promise<void> {

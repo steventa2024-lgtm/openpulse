@@ -6,6 +6,16 @@ export function mainSessionKey(agentId = DEFAULT_AGENT_ID, mainKey = 'main'): st
   return `agent:${agentId}:${mainKey}`;
 }
 
+export function namedSessionKey(slug: string, agentId = DEFAULT_AGENT_ID): string {
+  const s = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  if (!s) throw new Error('named session slug cannot be empty');
+  return `agent:${agentId}:s:${s}`;
+}
+
+export function isNamedSessionKey(key: string): boolean {
+  return /^agent:[^:]+:s:[a-z0-9-]+$/.test(key);
+}
+
 export interface InboundRoute {
   agentId?: string;
   channel: string;
@@ -65,7 +75,7 @@ export function canonicalSessionKey(
 export function parseSessionKey(key: string): {
   agentId: string;
   rest: string;
-  kind: 'main' | 'direct' | 'group' | 'cron' | 'other';
+  kind: 'main' | 'direct' | 'group' | 'cron' | 'named' | 'other';
 } {
   const m = /^agent:([^:]+):(.+)$/.exec(key);
   if (!m) return { agentId: DEFAULT_AGENT_ID, rest: key, kind: 'other' };
@@ -73,13 +83,15 @@ export function parseSessionKey(key: string): {
   const kind =
     rest === 'main'
       ? 'main'
-      : rest.includes(':group:')
-        ? 'group'
-        : rest.startsWith('cron:')
-          ? 'cron'
-          : rest.includes('dm:')
-            ? 'direct'
-            : 'other';
+      : rest.startsWith('s:')
+        ? 'named'
+        : rest.includes(':group:')
+          ? 'group'
+          : rest.startsWith('cron:')
+            ? 'cron'
+            : rest.includes('dm:')
+              ? 'direct'
+              : 'other';
   return { agentId: m[1]!, rest, kind };
 }
 

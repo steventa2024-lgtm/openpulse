@@ -448,6 +448,51 @@ export function createProgram(io: CliIO = defaultIO): Command {
     });
 
   // ---- channels & pairing ----------------------------------------------------------------------
+
+  // ---- session routes ---------------------------------------------------------------------------
+  const routes = sessions
+    .command('routes')
+    .description('pin a chat to a named session (overrides dmScope)');
+
+  routes
+    .command('list')
+    .description('show all chat → session routes')
+    .action(async function (this: Command) {
+      await withClient(this, async (client) => {
+        const data = await client.request<{ routes: { route: string; sessionKey: string }[] }>(
+          'session.routes.list',
+        );
+        if (data.routes.length === 0) {
+          c.info('no routes set — all chats use the default session');
+          return;
+        }
+        for (const r of data.routes) {
+          c.info(`${r.route}  →  ${r.sessionKey}`);
+        }
+      });
+    });
+
+  routes
+    .command('set <channel> <chatId> <slug>')
+    .description('route a chat to a named session (use "main" to reset)')
+    .action(async function (this: Command, channel: string, chatId: string, slug: string) {
+      await withClient(this, async (client) => {
+        const sessionKey = slug === 'main' ? null : `agent:main:s:${slug.toLowerCase()}`;
+        await client.request('session.routes.set', { channel, chatId, sessionKey });
+        c.info(sessionKey ? `routed ${channel}:${chatId} → ${sessionKey}` : `cleared route for ${channel}:${chatId}`);
+      });
+    });
+
+  routes
+    .command('clear')
+    .description('remove all chat routes')
+    .action(async function (this: Command) {
+      await withClient(this, async (client) => {
+        await client.request('session.routes.clear');
+        c.info('all routes cleared');
+      });
+    });
+
   const channels = program.command('channels').description('messaging channels');
 
   channels

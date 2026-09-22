@@ -2,6 +2,7 @@ import type { ExecApprovalRequest, ExecApprovals } from '../approvals/exec-appro
 import type { OpenPulseConfig } from '../config/schema.js';
 import type { Logger } from '../infra/logger.js';
 import type { PairingStore } from './pairing-store.js';
+import type { RoutesStore } from '../sessions/routes.js';
 
 export interface InboundMessage {
   channel: string;
@@ -34,6 +35,7 @@ export interface ChannelStatus {
 
 export interface ChannelContext {
   onInbound(message: InboundMessage): Promise<void>;
+  routes: RoutesStore;
   config(): OpenPulseConfig;
   pairing: PairingStore;
   approvals: ExecApprovals;
