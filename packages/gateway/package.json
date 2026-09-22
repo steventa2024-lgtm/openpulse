@@ -1,0 +1,45 @@
+{
+  "name": "@openpulse/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenPulse gateway daemon: webhooks, local API and the autonomous loop",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "@openpulse/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch --conditions=@openpulse/source src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.56",
+    "@ai-sdk/openai": "^4.0.69",
+    "@ai-sdk/openai-compatible": "^3.0.51",
+    "@openpulse/dashboard": "workspace:*",
+    "ai": "^7.0.105",
+    "croner": "^10.0.1",
+    "json5": "^2.2.3",
+    "playwright-core": "^1.63.0",
+    "ws": "^8.21.3",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^4.0.17",
+    "@types/ws": "^8.18.1"
+  }
+}

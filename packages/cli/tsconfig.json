@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true,
+    // Type-check against workspace sources so `typecheck` and ESLint don't need a prior build.
+    // The emit config (tsconfig.build.json) resolves to the built `dist` output instead.
+    "customConditions": ["@openpulse/source"]
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

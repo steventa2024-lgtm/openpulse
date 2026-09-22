@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+
+# pnpm blocks dependency install scripts by default. esbuild's postinstall only
+# verifies its platform binary (shipped via optionalDependencies), so it isn't needed.
+allowBuilds:
+  esbuild: false

@@ -1,0 +1,49 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Monorepo build artifacts
+packages/*/dist/
+packages/*/node_modules/
+packages/*/coverage/
+packages/*/*.tsbuildinfo
+
+# Claude Code local state (keep shared config, ignore runtime)
+.claude/state/
+.claude/sessions/
+.claude/cache/
+.claude/*.log
+
+# Env additions
+.env.local
+.env.*.local
+
+# Package manager caches
+.pnpm-store/
+.turbo/
+.cache/
+
+# Python (in case any package uses it later)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
