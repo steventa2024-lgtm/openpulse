@@ -222,7 +222,11 @@ export class ChannelManager {
       },
       deliver: async (text) => {
         stopTyping();
-        await plugin.send(to, text);
+        if (plugin.sendWithPhotos) {
+          await plugin.sendWithPhotos(to, text);
+        } else {
+          await plugin.send(to, text);
+        }
       },
     });
     if (result.status === 'command') stopTyping();

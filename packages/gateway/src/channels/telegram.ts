@@ -56,6 +56,43 @@ export interface TelegramOptions {
 }
 
 /** Telegram Bot API channel: long polling by default, webhook when channels.telegram.webhookUrl is set. */
+/**
+ * Scan a reply for markdown image references and bare paths to files under
+ * ~/.openpulse/media/, returning the remaining text plus the extracted attachments.
+ */
+function extractImages(text: string): {
+  text: string;
+  images: { path: string; caption?: string }[];
+} {
+  const images: { path: string; caption?: string }[] = [];
+  const kept: string[] = [];
+  const isMedia = (p: string) =>
+    /\/\.openpulse\/media\/[A-Za-z0-9_.\/-]+\.(png|jpe?g|webp|gif)$/i.test(p);
+
+  for (const line of text.split('\n')) {
+    const md = line.match(/!\[([^\]]*)\]\(([^)]+\.(?:png|jpe?g|webp|gif))\)/i);
+    if (md && isMedia(md[2]!)) {
+      images.push({ path: md[2]!, caption: md[1] || undefined });
+      const rest = line.replace(md[0], '').trim();
+      if (rest) kept.push(rest);
+      continue;
+    }
+    const bare = line.match(/(?:Saved screenshot|Screenshot):?\s*(\/[^\s]+\.(?:png|jpe?g|webp|gif))/i);
+    if (bare && isMedia(bare[1]!)) {
+      images.push({ path: bare[1]! });
+      continue;
+    }
+    const barePath = line.trim().match(/^(\/[^\s]+\.(?:png|jpe?g|webp|gif))$/i);
+    if (barePath && isMedia(barePath[1]!)) {
+      images.push({ path: barePath[1]! });
+      continue;
+    }
+    kept.push(line);
+  }
+
+  return { text: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(), images };
+}
+
 export class TelegramChannel implements ChannelPlugin {
   readonly id = 'telegram';
   readonly label = 'Telegram';
@@ -167,6 +204,45 @@ export class TelegramChannel implements ChannelPlugin {
         } else throw error;
       }
     }
+    this.state.lastOutboundAt = Date.now();
+  }
+
+  async sendWithPhotos(to: string, text: string): Promise<void> {
+    const { text: cleanText, images } = extractImages(text);
+    if (cleanText.trim()) {
+      await this.send(to, cleanText).catch(() => undefined);
+    }
+    for (const img of images) {
+      await this.sendPhotoFile(to, img.path, img.caption).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Upload a local file as a Telegram photo. Uses multipart/form-data because
+   * Telegram's Bot API rejects data URIs and file:// URLs.
+   */
+  private async sendPhotoFile(to: string, filePath: string, caption?: string): Promise<void> {
+    const { readFile } = await import('node:fs/promises');
+    const buf = await readFile(filePath);
+
+    const chatId = to.split(':topic:')[0]!;
+    const thread = to.includes(':topic:') ? Number(to.split(':topic:')[1]) : undefined;
+
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    if (thread !== undefined && !Number.isNaN(thread)) {
+      form.append('message_thread_id', String(thread));
+    }
+    const filename = filePath.split('/').pop() ?? 'screenshot.png';
+    form.append('photo', new Blob([buf], { type: 'image/png' }), filename);
+    if (caption) form.append('caption', caption.slice(0, 1024));
+
+    // Reuse the class's own apiBase/fetch/token, matching what call() already does.
+    const res = await this.fetch(`${this.apiBase}/bot${this.opts.token}/sendPhoto`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) throw new Error(`sendPhoto ${res.status}: ${await res.text()}`);
     this.state.lastOutboundAt = Date.now();
   }
 

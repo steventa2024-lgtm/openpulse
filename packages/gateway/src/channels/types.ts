@@ -50,6 +50,8 @@ export interface ChannelPlugin {
   stop(): Promise<void>;
   status(): ChannelStatus;
   send(to: string, text: string): Promise<void>;
+  /** Optional: same as send(), but may render embedded attachments (e.g. markdown image paths) as native attachments. */
+  sendWithPhotos?(to: string, text: string): Promise<void>;
   typing?(to: string): Promise<void>;
   /** Present an exec approval prompt (buttons where supported). */
   approvalPrompt?(to: string, approval: ExecApprovalRequest): Promise<void>;
