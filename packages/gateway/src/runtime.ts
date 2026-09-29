@@ -19,6 +19,7 @@ import { McpManager } from './mcp/manager.js';
 import { TelemetryStore } from './telemetry/store.js';
 import { TestRunner } from './testing/runner.js';
 import { TraceRecorder } from './debug/trace.js';
+import { WorkflowEngine } from './workflows/engine.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
@@ -73,6 +74,7 @@ export class Runtime {
   readonly telemetry: TelemetryStore;
   readonly tests = new TestRunner();
   readonly traces: TraceRecorder;
+  readonly workflows: WorkflowEngine;
   /** Set by the server so agent-proposed changes reach connected clients immediately. */
   emitChange: ((changeId: string, projectId: string) => void) | undefined;
   readonly processes = new ProcessRegistry();
@@ -255,6 +257,20 @@ export class Runtime {
         { command: resolved.request.command, decision: resolved.decision, by: resolved.resolvedBy },
       ),
     );
+    this.workflows = new WorkflowEngine({
+      dir: path.join(this.paths.stateDir, 'workflows'),
+      agentId: this.agentId,
+      runAndWait: (params) => this.agent.runAndWait(params),
+      abort: (sessionKey) => this.agent.abort(sessionKey),
+      changesProposedBy: async (sessionKey, since) =>
+        (await this.changes.list())
+          .filter((set) => set.origin.sessionKey === sessionKey && set.createdAt >= since)
+          .map((set) => set.id),
+      projectContext: async () => {
+        const project = await this.projects.active();
+        return project ? { id: project.id, name: project.name, path: project.path } : undefined;
+      },
+    });
     this.channels = new ChannelManager({
       config: () => this.cfg,
       agent: this.agent,
@@ -294,6 +310,7 @@ export class Runtime {
     await rt.approvals.load();
     await rt.projects.load();
     await rt.telemetry.load();
+    await rt.workflows.load();
     await rt.refreshFsPolicy();
     return rt;
   }

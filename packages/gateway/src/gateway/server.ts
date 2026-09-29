@@ -166,6 +166,9 @@ export class GatewayServer {
   private wireEvents(): void {
     this.rt.emitChange = (changeId, projectId) =>
       this.broadcast('changes.changed', { id: changeId, projectId, reason: 'proposed' });
+    this.rt.workflows.on('changed', (execution) =>
+      this.broadcast('workflows.changed', { execution }),
+    );
     this.rt.tests.on('started', (run) =>
       this.broadcast('tests.started', { run: summariseRun(run) }),
     );

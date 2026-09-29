@@ -7,6 +7,7 @@ import { detectLocalProviders, inspectOllamaModel } from '../models/detect.js';
 import { detectTestSuites } from '../testing/detect.js';
 import { sanitizeValue } from '../debug/sanitize.js';
 import { SkillRegistry, SkillRegistryError } from '../skills/registry.js';
+import { WorkflowError } from '../workflows/engine.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -66,6 +67,22 @@ function wrap<T>(fn: () => Promise<T>): Promise<T> {
       throw new GatewayError(code, error.message);
     }
     if (error instanceof GitError) throw new GatewayError('INVALID_REQUEST', error.message);
+    if (error instanceof WorkflowError) {
+      throw new GatewayError(
+        error.code === 'NOT_FOUND'
+          ? 'NOT_FOUND'
+          : error.code === 'CONFLICT'
+            ? 'CONFLICT'
+            : 'INVALID_REQUEST',
+        error.message,
+      );
+    }
+    if (error instanceof z.ZodError) {
+      throw new GatewayError(
+        'INVALID_REQUEST',
+        error.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; '),
+      );
+    }
     if (error instanceof SkillRegistryError) {
       throw new GatewayError(
         error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
@@ -906,6 +923,53 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
       ctx.broadcast('skills.changed', { name, reason: 'updated' });
       return { updated };
     });
+  },
+
+  // ---- multi-agent workflows -----------------------------------------------------------------
+  'workflows.list': (_p, { rt }) => ({
+    roles: rt.workflows.listRoles(),
+    workflows: rt.workflows.listWorkflows(),
+  }),
+
+  'workflows.role.save': async (p, { rt }) =>
+    wrap(async () => ({ role: await rt.workflows.saveRole(p) })),
+
+  'workflows.role.remove': async (p, { rt }) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    return wrap(async () => ({ removed: await rt.workflows.removeRole(id) }));
+  },
+
+  'workflows.save': async (p, { rt }) =>
+    wrap(async () => ({ workflow: await rt.workflows.saveWorkflow(p) })),
+
+  'workflows.remove': async (p, { rt }) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    return wrap(async () => ({ removed: await rt.workflows.removeWorkflow(id) }));
+  },
+
+  'workflows.start': async (p, { rt }) => {
+    const { workflowId, request } = parse(
+      z.object({ workflowId: z.string(), request: z.string().min(1).max(8000) }),
+      p,
+    );
+    return wrap(async () => ({ execution: await rt.workflows.start(workflowId, request) }));
+  },
+
+  'workflows.cancel': async (p, { rt }) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    return wrap(async () => ({ execution: await rt.workflows.cancel(id) }));
+  },
+
+  'workflows.executions': (p, { rt }) => {
+    const { limit } = parse(z.object({ limit: z.number().int().min(1).max(100).default(30) }), p);
+    return { executions: rt.workflows.executionsList(limit) };
+  },
+
+  'workflows.execution': (p, { rt }) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    const execution = rt.workflows.execution(id);
+    if (!execution) throw new GatewayError('NOT_FOUND', `No workflow run ${id}.`);
+    return { execution };
   },
 
   // ---- git -------------------------------------------------------------------------------------

@@ -163,6 +163,18 @@ export {
   type ModelSummary,
 } from './telemetry/store.js';
 
+// Multi-agent workflows
+export {
+  WorkflowEngine,
+  WorkflowError,
+  BUILTIN_WORKFLOWS,
+  validateGraph,
+  type Workflow,
+  type WorkflowExecution,
+  type StepExecution,
+} from './workflows/engine.js';
+export { BUILTIN_ROLES, excludedTools, type Role } from './workflows/roles.js';
+
 // Skills registry
 export {
   SkillRegistry,

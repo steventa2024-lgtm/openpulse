@@ -17,6 +17,10 @@ export interface DispatchParams {
   deliver?: (text: string) => Promise<void>;
   idempotencyKey?: string;
   extraSystemPrompt?: string;
+  /** Tools withheld for this run (a role's permissions, a heartbeat's limits). */
+  excludeTools?: string[];
+  /** Model override for this run only (a workflow role's assigned model). */
+  model?: string;
 }
 
 interface Lane {
@@ -208,6 +212,8 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
       onAgentEvent: (e) => this.emit('agent', e),
       onChatEvent: (e) => this.emit('chat', e),
       ...(p.extraSystemPrompt !== undefined && { extraSystemPrompt: p.extraSystemPrompt }),
+      ...(p.excludeTools !== undefined && { excludeTools: p.excludeTools }),
+      ...(p.model !== undefined && { model: p.model }),
     });
 
     if (p.source.channel && p.source.to && p.source.kind === 'user') {

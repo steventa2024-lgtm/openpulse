@@ -61,6 +61,18 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Multi-agent workflows (gateway side). Roles (planner, researcher, coder, tester,
+  reviewer, plus custom) set instructions, model and a permission level that maps to tools. Every
+  workflow step is an ordinary agent turn in its own session; steps run in dependency order and
+  independent ones run side by side up to a limit. No step can write files: coding roles propose
+  changes, which is how parallel agents are kept from overwriting each other, and change sets a
+  step proposes are linked to the run for review. Graphs are validated (unknown roles, unknown
+  dependencies, cycles); failed dependencies skip their dependants; cancel aborts running steps;
+  runs and definitions persist, and a run interrupted by a restart is recorded as such.
+  New RPCs: workflows.list/save/remove/role.save/role.remove/start/cancel/executions/execution.
+  Verified: 11 tests driving real (scripted-model) agent turns, including parallel research steps
+  and a coder step whose proposal lands in review without touching the file.
+
 - **2026-09-28** — Skills registry (gateway side). `SkillRegistry` validates a skill folder
   (frontmatter, name, size) and lists every script it ships; installs from a local folder or a git
   repository (byte-exact clone, `.git` stripped, commit recorded); updates from the recorded origin;

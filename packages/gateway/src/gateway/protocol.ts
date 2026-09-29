@@ -118,6 +118,7 @@ export const GATEWAY_EVENTS = [
   'tests.output',
   'tests.finished',
   'skills.changed',
+  'workflows.changed',
   'config.changed',
   'shutdown',
 ] as const;
