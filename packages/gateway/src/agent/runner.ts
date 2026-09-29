@@ -24,6 +24,7 @@ import {
 } from './models.js';
 import { buildSystemPrompt, DEFAULT_HEARTBEAT_PROMPT } from './system-prompt.js';
 import { buildTools } from './tools/index.js';
+import type { McpToolBridge } from './tools/mcp-tools.js';
 import {
   ToolInputError,
   type AnyTool,
@@ -88,6 +89,8 @@ export interface RunnerDeps {
   sessions: SessionStore;
   skills: () => Promise<SkillDefinition[]>;
   services: ToolServices;
+  /** Connected MCP servers, read per run so newly connected tools appear without a restart. */
+  mcp?: () => McpToolBridge;
   log: Logger;
   modelFactory?: ModelFactory;
 }
@@ -188,6 +191,7 @@ export class AgentRunner {
     const tools = buildTools({
       config,
       browser: this.deps.services.browser,
+      ...(this.deps.mcp && { mcp: this.deps.mcp() }),
       ...(p.excludeTools && { exclude: p.excludeTools }),
     });
     const ctx: ToolContext = {

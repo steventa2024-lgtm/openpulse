@@ -197,6 +197,46 @@ export const ConfigSchema = z
       })
       .strict()
       .prefault({}),
+    /**
+     * Model Context Protocol servers. Each one is launched (stdio) or reached (http), and the
+     * tools it offers become agent tools named mcp__<id>__<tool>. Untrusted servers ask for
+     * approval before every call.
+     */
+    mcp: z
+      .object({
+        servers: z
+          .record(
+            z.string(),
+            z
+              .object({
+                label: z.string().optional(),
+                enabled: z.boolean().default(true),
+                transport: z.enum(['stdio', 'http']).default('stdio'),
+                /** stdio */
+                command: z.string().optional(),
+                args: z.array(z.string()).optional(),
+                env: z.record(z.string(), z.string()).optional(),
+                cwd: z.string().optional(),
+                /** http */
+                url: z.string().optional(),
+                headers: z.record(z.string(), z.string()).optional(),
+                /** "ask" requires approval for every tool call; "allow" runs them directly. */
+                trust: z.enum(['ask', 'allow']).default('ask'),
+                timeoutMs: z.number().int().min(1000).max(600_000).default(30_000),
+                tools: z
+                  .object({
+                    allow: z.array(z.string()).optional(),
+                    deny: z.array(z.string()).default([]),
+                  })
+                  .strict()
+                  .prefault({}),
+              })
+              .strict(),
+          )
+          .default({}),
+      })
+      .strict()
+      .prefault({}),
     browser: z
       .object({
         enabled: z.boolean().default(true),
@@ -279,6 +319,7 @@ export const ConfigSchema = z
   .strict();
 
 export type OpenPulseConfig = z.output<typeof ConfigSchema>;
+export type McpServerConfig = OpenPulseConfig['mcp']['servers'][string];
 export type TelegramConfig = z.output<typeof TelegramSchema>;
 
 /** Field hints for the Control UI config form. */

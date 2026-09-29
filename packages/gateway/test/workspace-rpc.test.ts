@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GatewayClient } from '../src/client/gateway-client.js';
 import { startGateway, type RunningGateway } from '../src/start.js';
@@ -279,5 +280,74 @@ describe('security RPCs', () => {
     );
     expect(after.mode).toBe('read-only');
     expect(after.policy.writeRoots).toEqual([]);
+  });
+});
+
+describe('MCP RPCs', () => {
+  it('adds a server, connects it, exposes its tools and calls one', async () => {
+    const { client } = await harness();
+    const server = fileURLToPath(new URL('./fixtures/mcp-test-server.mjs', import.meta.url));
+
+    const added = await client.request<{
+      servers: { id: string; state: string; toolCount: number }[];
+    }>('mcp.add', {
+      id: 'testing',
+      label: 'Test server',
+      transport: 'stdio',
+      command: process.execPath,
+      args: [server],
+      trust: 'allow',
+    });
+    expect(added.servers[0]).toMatchObject({ id: 'testing', state: 'connected', toolCount: 3 });
+
+    const status = await client.request<{ tools: { qualifiedName: string; enabled: boolean }[] }>(
+      'mcp.status',
+    );
+    expect(status.tools.map((t) => t.qualifiedName)).toContain('mcp__testing__echo');
+
+    const called = await client.request<{ text: string; isError: boolean }>('mcp.call', {
+      id: 'testing',
+      tool: 'echo',
+      args: { text: 'over the wire' },
+    });
+    expect(called).toMatchObject({ text: 'over the wire', isError: false });
+  });
+
+  it('switches a single tool off and refuses to call it', async () => {
+    const { client } = await harness();
+    const server = fileURLToPath(new URL('./fixtures/mcp-test-server.mjs', import.meta.url));
+    await client.request('mcp.add', {
+      id: 'testing',
+      transport: 'stdio',
+      command: process.execPath,
+      args: [server],
+      trust: 'allow',
+    });
+
+    await client.request('mcp.tool.set', { id: 'testing', tool: 'echo', enabled: false });
+    const status = await client.request<{ tools: { name: string; enabled: boolean }[] }>(
+      'mcp.status',
+    );
+    expect(status.tools.find((t) => t.name === 'echo')?.enabled).toBe(false);
+
+    await expect(
+      client.request('mcp.call', { id: 'testing', tool: 'echo', args: { text: 'x' } }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
+  });
+
+  it('rejects an incomplete server definition', async () => {
+    const { client } = await harness();
+    await expect(
+      client.request('mcp.add', { id: 'broken', transport: 'stdio' }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('needs a command'),
+    });
+    await expect(
+      client.request('mcp.add', { id: 'bad id!', transport: 'http', url: 'http://x' }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
   });
 });

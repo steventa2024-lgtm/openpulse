@@ -2,6 +2,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { ChangeError } from '../changes/proposals.js';
 import { CheckpointError } from '../checkpoints/service.js';
+import { McpError, renderToolResult } from '../mcp/client.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -57,6 +58,12 @@ function wrap<T>(fn: () => Promise<T>): Promise<T> {
       throw new GatewayError(code, error.message);
     }
     if (error instanceof GitError) throw new GatewayError('INVALID_REQUEST', error.message);
+    if (error instanceof McpError) {
+      throw new GatewayError(
+        error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
+        error.message,
+      );
+    }
     if (error instanceof CheckpointError) {
       throw new GatewayError(
         error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
@@ -361,6 +368,111 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
     return { removed };
   },
 
+  // ---- MCP -------------------------------------------------------------------------------------
+  'mcp.status': (_p, { rt }) => ({
+    servers: rt.mcp.status(),
+    tools: rt.mcp.tools(),
+  }),
+
+  'mcp.connect': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    return wrap(async () => {
+      const status = await ctx.rt.mcp.connect(id);
+      ctx.broadcast('mcp.changed', { serverId: id, reason: status.state });
+      return { server: status };
+    });
+  },
+
+  'mcp.disconnect': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    await ctx.rt.mcp.disconnect(id);
+    ctx.broadcast('mcp.changed', { serverId: id, reason: 'disconnected' });
+    return { ok: true };
+  },
+
+  /** Add or replace a server definition, then connect it. */
+  'mcp.add': async (p, ctx) => {
+    const server = parse(
+      z.object({
+        id: z
+          .string()
+          .min(1)
+          .max(60)
+          .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/, 'Use letters, digits, dashes and underscores'),
+        label: z.string().max(120).optional(),
+        transport: z.enum(['stdio', 'http']).default('stdio'),
+        command: z.string().optional(),
+        args: z.array(z.string()).optional(),
+        env: z.record(z.string(), z.string()).optional(),
+        cwd: z.string().optional(),
+        url: z.string().optional(),
+        headers: z.record(z.string(), z.string()).optional(),
+        trust: z.enum(['ask', 'allow']).default('ask'),
+        enabled: z.boolean().default(true),
+      }),
+      p,
+    );
+    if (server.transport === 'stdio' && !server.command) {
+      throw new GatewayError('INVALID_REQUEST', 'A stdio server needs a command to run.');
+    }
+    if (server.transport === 'http' && !server.url) {
+      throw new GatewayError('INVALID_REQUEST', 'An HTTP server needs a url.');
+    }
+    const { id, ...rest } = server;
+    await configWriteOrThrow(() => ctx.rt.config.patch({ mcp: { servers: { [id]: rest } } }));
+    await ctx.rt.mcp.sync();
+    ctx.broadcast('mcp.changed', { serverId: id, reason: 'added' });
+    return { servers: ctx.rt.mcp.status() };
+  },
+
+  'mcp.remove': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    await ctx.rt.mcp.disconnect(id);
+    await configWriteOrThrow(() => ctx.rt.config.patch({ mcp: { servers: { [id]: null } } }));
+    await ctx.rt.mcp.sync();
+    ctx.broadcast('mcp.changed', { serverId: id, reason: 'removed' });
+    return { removed: true };
+  },
+
+  /** Switch one tool on or off without touching the rest of the server. */
+  'mcp.tool.set': async (p, ctx) => {
+    const { id, tool, enabled } = parse(
+      z.object({ id: z.string(), tool: z.string(), enabled: z.boolean() }),
+      p,
+    );
+    const server = ctx.rt.cfg.mcp.servers[id];
+    if (!server) throw new GatewayError('NOT_FOUND', `No MCP server called "${id}".`);
+    const deny = new Set(server.tools.deny);
+    if (enabled) deny.delete(tool);
+    else deny.add(tool);
+    await configWriteOrThrow(() =>
+      ctx.rt.config.patch({ mcp: { servers: { [id]: { tools: { deny: [...deny] } } } } }),
+    );
+    ctx.broadcast('mcp.changed', { serverId: id, reason: 'tools' });
+    return { tools: ctx.rt.mcp.tools() };
+  },
+
+  /** Call a tool straight from the UI, to check a server actually works. */
+  'mcp.call': async (p, { rt }) => {
+    const { id, tool, args } = parse(
+      z.object({
+        id: z.string(),
+        tool: z.string(),
+        args: z.record(z.string(), z.unknown()).default({}),
+      }),
+      p,
+    );
+    return wrap(async () => {
+      const started = Date.now();
+      const result = await rt.mcp.callTool(id, tool, args);
+      return {
+        isError: result.isError,
+        text: renderToolResult(result),
+        durationMs: Date.now() - started,
+      };
+    });
+  },
+
   // ---- git -------------------------------------------------------------------------------------
   'git.available': async () => gitAvailable(),
 
@@ -513,3 +625,12 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
     });
   },
 };
+
+/** Config writes raise ConfigError; surface the reason instead of a stack trace. */
+async function configWriteOrThrow<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw new GatewayError('INVALID_REQUEST', (error as Error).message);
+  }
+}

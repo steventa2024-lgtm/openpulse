@@ -145,6 +145,22 @@ export {
   type FsDecision,
 } from './policy/fs-policy.js';
 
+// MCP
+export {
+  McpClient,
+  McpError,
+  renderToolResult,
+  MCP_PROTOCOL_VERSION,
+  type McpToolDefinition,
+  type McpToolResult,
+} from './mcp/client.js';
+export {
+  McpManager,
+  qualifiedToolName,
+  type McpServerStatus,
+  type McpToolStatus,
+} from './mcp/manager.js';
+
 // Changes and checkpoints
 export {
   ChangeStore,

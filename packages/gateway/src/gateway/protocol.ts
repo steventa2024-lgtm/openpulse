@@ -113,6 +113,7 @@ export const GATEWAY_EVENTS = [
   'workspace.changed',
   'changes.changed',
   'checkpoints.changed',
+  'mcp.changed',
   'config.changed',
   'shutdown',
 ] as const;

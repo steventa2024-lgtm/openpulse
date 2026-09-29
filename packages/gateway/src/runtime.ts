@@ -14,6 +14,7 @@ import { CronService } from './cron/service.js';
 import { DeviceStore } from './gateway/devices.js';
 import { HeartbeatRunner } from './heartbeat/runner.js';
 import { LogSink, type LogRecord, type Logger } from './infra/logger.js';
+import { McpManager } from './mcp/manager.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
@@ -47,6 +48,7 @@ export interface RuntimeStartOptions {
   channels?: boolean;
   cron?: boolean;
   heartbeat?: boolean;
+  mcp?: boolean;
 }
 
 /** The whole agent, minus the network server. Shared by the gateway and tests. */
@@ -63,6 +65,7 @@ export class Runtime {
   readonly projects: ProjectStore;
   readonly changes: ChangeStore;
   readonly checkpoints: CheckpointService;
+  readonly mcp: McpManager;
   /** Set by the server so agent-proposed changes reach connected clients immediately. */
   emitChange: ((changeId: string, projectId: string) => void) | undefined;
   readonly processes = new ProcessRegistry();
@@ -98,6 +101,7 @@ export class Runtime {
     this.projects = new ProjectStore(path.join(this.paths.stateDir, 'projects.json'));
     this.changes = new ChangeStore(path.join(this.paths.stateDir, 'changes'));
     this.checkpoints = new CheckpointService(path.join(this.paths.stateDir, 'checkpoints'));
+    this.mcp = new McpManager({ config: () => this.cfg, log: this.logs.logger('mcp') });
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -212,6 +216,7 @@ export class Runtime {
       config: () => this.cfg,
       workspace: () => this.workspaceDir,
       fsPolicy: () => this.fsPolicy,
+      mcp: () => this.mcp,
       sessions: this.sessions,
       skills: () => this.activeSkills(),
       services,
@@ -342,6 +347,10 @@ export class Runtime {
     if (opts.cron !== false) await this.cron.start();
     if (opts.heartbeat !== false) this.heartbeat.start();
     if (opts.channels !== false) await this.channels.sync();
+    if (opts.mcp !== false)
+      await this.mcp.sync().catch((error: unknown) => {
+        this.log.warn(`mcp servers could not be synced: ${(error as Error).message}`);
+      });
     this.log.info('runtime started', {
       stateDir: this.paths.stateDir,
       workspace: this.workspaceDir,
@@ -359,6 +368,7 @@ export class Runtime {
     this.approvals.cancelAll();
     this.processes.killAll();
     await this.channels.stopAll();
+    await this.mcp.stop();
     await this.browser.stop();
     this.log.info('runtime stopped');
     await this.logs.flush();
@@ -376,6 +386,9 @@ export class Runtime {
     this.heartbeat.reconfigure();
     await this.refreshFsPolicy();
     await this.channels.sync();
+    await this.mcp.sync().catch((error: unknown) => {
+      this.log.warn(`mcp servers could not be synced: ${(error as Error).message}`);
+    });
     this.log.info('config reloaded');
   }
 }

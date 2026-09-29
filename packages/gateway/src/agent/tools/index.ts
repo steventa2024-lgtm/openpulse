@@ -2,6 +2,7 @@ import type { OpenPulseConfig } from '../../config/schema.js';
 import { createBrowserTool, type BrowserSession } from './browser-tool.js';
 import { proposeChangeTool } from './change-tools.js';
 import { createExecTool, processTool } from './exec-tools.js';
+import { buildMcpTools, type McpToolBridge } from './mcp-tools.js';
 import { editTool, readTool, writeTool } from './fs-tools.js';
 import {
   cronTool,
@@ -31,6 +32,8 @@ export const TOOL_GROUPS: Record<string, string[]> = {
 export interface ToolBuildOptions {
   config: OpenPulseConfig;
   browser: BrowserSession;
+  /** Connected MCP servers; their enabled tools join the built-in set. */
+  mcp?: McpToolBridge;
   /** Extra names removed for this run (e.g. heartbeat/cron sessions can't message sessions). */
   exclude?: string[];
 }
@@ -58,6 +61,7 @@ export function buildTools(opts: ToolBuildOptions): AnyTool[] {
     sessionStatusTool,
     memorySearchTool,
     memoryGetTool,
+    ...(opts.mcp ? buildMcpTools(opts.mcp) : []),
   ];
   const allow = config.tools.allow ? expand(config.tools.allow) : undefined;
   const deny = expand([...config.tools.deny, ...(opts.exclude ?? [])]);

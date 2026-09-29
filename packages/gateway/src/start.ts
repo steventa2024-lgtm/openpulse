@@ -13,7 +13,7 @@ export interface RunningGateway {
 
 /** Create the runtime, bind the server, start channels/cron/heartbeat. */
 export async function startGateway(options: StartGatewayOptions = {}): Promise<RunningGateway> {
-  const { controlUiDir, host, port, channels, cron, heartbeat, ...runtimeOptions } = options;
+  const { controlUiDir, host, port, channels, cron, heartbeat, mcp, ...runtimeOptions } = options;
   const runtime = await Runtime.create(runtimeOptions);
   const server = new GatewayServer(runtime, {
     ...(controlUiDir !== undefined && { controlUiDir }),
@@ -30,6 +30,7 @@ export async function startGateway(options: StartGatewayOptions = {}): Promise<R
     ...(channels !== undefined && { channels }),
     ...(cron !== undefined && { cron }),
     ...(heartbeat !== undefined && { heartbeat }),
+    ...(mcp !== undefined && { mcp }),
   });
   return {
     runtime,

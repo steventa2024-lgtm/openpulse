@@ -61,6 +61,19 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — MCP support (gateway side). `McpClient` speaks JSON-RPC 2.0 over stdio
+  (newline-delimited) and HTTP (JSON or single-event SSE), covering initialize, tools/list and
+  tools/call. `McpManager` connects the servers declared in `openpulse.json`, reports health, and
+  exposes their tools as `mcp__<server>__<tool>` so nothing can shadow a built-in. Untrusted servers
+  route every call through the existing approval flow; trusted ones run directly. Tool allow/deny
+  and trust changes apply without dropping the connection — only transport changes reconnect.
+  New RPCs: mcp.status/connect/disconnect/add/remove/tool.set/call.
+  Verified: 193 gateway tests, including 16 against a real MCP server (`test/fixtures/mcp-test-server.mjs`)
+  covering handshake, discovery, calls, tool failure, a server that refuses to start, approval
+  granted and declined, and per-tool switches.
+
+  Still open: the MCP management page in the UI.
+
 - **2026-09-28** — Change proposals and checkpoints (gateway side). `ChangeStore` records proposed
   edits with the hash each file had when proposed; approval is per file, applying re-checks the hash
   so a stale patch is skipped with a reason instead of reverting newer work. Diffs are computed in
