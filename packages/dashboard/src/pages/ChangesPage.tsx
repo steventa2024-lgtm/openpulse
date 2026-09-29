@@ -283,6 +283,17 @@ function ChangeReview({ id, onChanged }: { id: string; onChanged: () => void }):
                   original={file.current ?? ''}
                   modified={file.action === 'delete' ? '' : (file.content ?? '')}
                   language={languageFor(file.path)}
+                  // The wrapper disposes the models before the diff widget lets go of them, which
+                  // throws on unmount. Keep them, and dispose them once the editor itself is gone.
+                  keepCurrentOriginalModel
+                  keepCurrentModifiedModel
+                  onMount={(editor) => {
+                    const models = editor.getModel();
+                    editor.onDidDispose(() => {
+                      models?.original.dispose();
+                      models?.modified.dispose();
+                    });
+                  }}
                   theme={
                     document.documentElement.dataset.theme === 'light' ? 'vs' : 'openpulse-dark'
                   }

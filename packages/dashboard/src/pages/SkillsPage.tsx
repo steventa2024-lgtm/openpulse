@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, PageHead, Pill, Rows, useAction } from '../components/ui.js';
 import { useGateway, useQuery } from '../gateway/provider.js';
 import type { SkillStatus } from '../types.js';
+import { SkillCreate, SkillDetail, SkillInstall } from './SkillsRegistry.js';
 
 export function SkillsPage(): JSX.Element {
   const { request } = useGateway();
@@ -137,6 +138,16 @@ export function SkillsPage(): JSX.Element {
           )}
         </Card>
       )}
+
+      {selected && <SkillDetail name={selected.name} onChanged={() => skills.reload()} />}
+
+      <SkillInstall onInstalled={() => skills.reload()} />
+      <SkillCreate
+        onCreated={(name) => {
+          skills.reload();
+          setOpen(name);
+        }}
+      />
 
       {skills.data && (
         <Card title="Where skills come from">

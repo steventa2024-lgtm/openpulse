@@ -20,6 +20,13 @@ import { GitPage } from './pages/GitPage.js';
 import { EditorPage } from './pages/EditorPage.js';
 import { ChangesPage } from './pages/ChangesPage.js';
 import { CheckpointsPage } from './pages/CheckpointsPage.js';
+import { ModelsPage } from './pages/ModelsPage.js';
+import { MonitoringPage } from './pages/MonitoringPage.js';
+import { WorkflowsPage } from './pages/WorkflowsPage.js';
+import { TestsPage } from './pages/TestsPage.js';
+import { DebuggerPage } from './pages/DebuggerPage.js';
+import { McpPage } from './pages/McpPage.js';
+import { SecurityPage } from './pages/SecurityPage.js';
 import { ProjectProvider, useProject } from './project/provider.js';
 
 interface Route {
@@ -47,13 +54,20 @@ const ROUTES: Route[] = [
   },
   // AI
   { id: 'chat', label: 'Chat', group: 'AI', icon: '✦', element: ChatPage },
+  { id: 'workflows', label: 'Workflows', group: 'AI', icon: '⋔', element: WorkflowsPage },
+  { id: 'models', label: 'Models', group: 'AI', icon: '◇', element: ModelsPage },
+  { id: 'monitoring', label: 'Monitoring', group: 'AI', icon: '∿', element: MonitoringPage },
   { id: 'sessions', label: 'Sessions', group: 'AI', icon: '☰', element: SessionsPage },
   // Automation
   { id: 'cron', label: 'Cron Jobs', group: 'Automation', icon: '⏱', element: CronPage },
   { id: 'channels', label: 'Channels', group: 'Automation', icon: '⇄', element: ChannelsPage },
   // Developer tools
+  { id: 'tests', label: 'Tests', group: 'Developer tools', icon: '✓', element: TestsPage },
+  { id: 'debugger', label: 'Debugger', group: 'Developer tools', icon: '⌕', element: DebuggerPage },
+  { id: 'mcp', label: 'MCP', group: 'Developer tools', icon: '⧉', element: McpPage },
   { id: 'skills', label: 'Skills', group: 'Developer tools', icon: '✸', element: SkillsPage },
   // System
+  { id: 'security', label: 'Permissions', group: 'System', icon: '⛨', element: SecurityPage },
   { id: 'config', label: 'Config', group: 'System', icon: '⚙', element: ConfigPage },
   { id: 'debug', label: 'Diagnostics', group: 'System', icon: '❖', element: DebugPage },
   { id: 'logs', label: 'Logs', group: 'System', icon: '▤', element: LogsPage },

@@ -185,3 +185,9 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - **2026-09-28** — Phase A audit complete. Confirmed absent: Electron, installer, website, SDK, MCP,
   editor, git integration, diff approval, checkpoints, multi-agent, test runner, telemetry, CI.
   Started Phase B.
+
+### 2026-09-28 — Dashboard batch 2 (models, monitoring, workflows, tests, debugger, MCP, permissions, skills registry UI)
+- New pages routed under AI / Developer tools / System; typecheck, lint (0 errors) and build pass.
+- Browser-verified against a live gateway: Tests page ran the demo project's real `npm test` (passed, output streamed); Models page detected the local Ollama models and a real test prompt to qwen2.5-coder:1.5b answered in 5s; Permissions, Workflows, MCP, Monitoring render with real (empty) data.
+- Fixed Monaco DiffEditor "TextModel got disposed" on unmount (keep models, dispose after the editor). Fix is built but not yet re-verified in the browser.
+- Not yet done: re-verify Changes diff after the fix, run a real agent turn to populate Debugger/Monitoring, full `pnpm run check`; then Phase I (website), Phase J (CI/release), docs, final report.
