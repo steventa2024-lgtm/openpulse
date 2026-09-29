@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The SDK runs in Node 22+ and in browsers, so it is checked against both sets of globals.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true,
+    "customConditions": ["@openpulse/source"]
+  },
+  "include": ["src", "test", "examples", "vitest.config.ts"]
+}

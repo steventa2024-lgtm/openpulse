@@ -159,6 +159,12 @@ importers:
         specifier: ^8.18.1
         version: 8.18.1
 
+  packages/sdk:
+    devDependencies:
+      '@openpulse/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+
 packages:
 
   '@ai-sdk/anthropic@4.0.56':

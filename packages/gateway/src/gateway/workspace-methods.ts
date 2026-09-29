@@ -8,6 +8,7 @@ import { detectTestSuites } from '../testing/detect.js';
 import { sanitizeValue } from '../debug/sanitize.js';
 import { SkillRegistry, SkillRegistryError } from '../skills/registry.js';
 import { WorkflowError } from '../workflows/engine.js';
+import { buildTools } from '../agent/tools/index.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -970,6 +971,21 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
     const execution = rt.workflows.execution(id);
     if (!execution) throw new GatewayError('NOT_FOUND', `No workflow run ${id}.`);
     return { execution };
+  },
+
+  // ---- tools ---------------------------------------------------------------------------------
+  /** The tools an agent run would get right now, after config, security mode and MCP. */
+  'tools.list': (_p, { rt }) => {
+    const tools = buildTools({ config: rt.cfg, browser: rt.browser, mcp: rt.mcp });
+    return {
+      securityMode: rt.cfg.security.mode,
+      tools: tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        source: tool.name.startsWith('mcp__') ? 'mcp' : 'builtin',
+        inputSchema: tool.inputSchema,
+      })),
+    };
   },
 
   // ---- git -------------------------------------------------------------------------------------

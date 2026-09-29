@@ -25,7 +25,7 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - [ ] **D — Agent reliability** (permission enforcement, debugger, checkpoints)
 - [ ] **E — AI infrastructure** (model wizard, MCP, monitoring, skills registry)
 - [ ] **F — Developer automation** (multi-agent workflows, test runner)
-- [ ] **G — SDK**
+- [x] **G — SDK**
 - [ ] **H — Unified dashboard navigation**
 - [ ] **I — Public website**
 - [ ] **J — Packaging and release**
@@ -60,6 +60,16 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 | No hosting credentials                           | Live website             | `apps/web` builds to static output, deploy documented                           |
 
 ## Log
+
+- **2026-09-28** — Phase G: `packages/sdk` (`@openpulse/sdk`). Zero runtime dependencies — native
+  WebSocket and WebCrypto in Node 22+ and browsers — over the existing protocol, not a second API.
+  Typed helpers for health, sessions, models, tools, runs/traces, workflows and approvals;
+  `runTask()` streams text, reasoning, tool calls, approval requests and the final answer;
+  `createDeviceIdentity()` for remote gateways; every failure is an `OpenPulseError` with a code.
+  Publishable package config, README, example project. Not published (no npm authorisation).
+  Added a `tools.list` gateway RPC for tool inspection.
+  Verified: 12 tests against a real gateway (scripted model), including streaming, device identity,
+  debugger traces and a multi-agent workflow run end to end.
 
 - **2026-09-28** — Multi-agent workflows (gateway side). Roles (planner, researcher, coder, tester,
   reviewer, plus custom) set instructions, model and a permission level that maps to tools. Every
