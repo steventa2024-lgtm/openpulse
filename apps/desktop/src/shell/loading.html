@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>OpenPulse</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101012;
+        --panel: #19191c;
+        --line: #2c2c33;
+        --text: #ececf1;
+        --dim: #a6a6b3;
+        --accent: #f5654a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.6 'Inter',
+          -apple-system,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+      }
+      .card {
+        width: min(30rem, 90vw);
+        text-align: center;
+      }
+      .mark {
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 1.25rem;
+        border-radius: 0.9rem;
+        background: linear-gradient(140deg, #f5654a, #c74a34);
+        animation: pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(245, 101, 74, 0.4);
+        }
+        50% {
+          transform: scale(1.06);
+          box-shadow: 0 0 0 1.2rem rgba(245, 101, 74, 0);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mark {
+          animation: none;
+        }
+      }
+      h1 {
+        font-size: 1rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 0 0 0.35rem;
+      }
+      p {
+        color: var(--dim);
+        margin: 0.25rem 0;
+      }
+      .log {
+        margin-top: 1.5rem;
+        padding: 0.6rem 0.8rem;
+        text-align: left;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        font-family: ui-monospace, 'Cascadia Mono', monospace;
+        font-size: 11.5px;
+        color: var(--dim);
+        max-height: 9rem;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark"></div>
+      <h1>OpenPulse</h1>
+      <p id="detail">Starting the gateway…</p>
+      <p id="state" style="font-size: 12px"></p>
+      <pre class="log" id="log" hidden></pre>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const detail = params.get('detail');
+      if (detail) document.getElementById('detail').textContent = detail;
+
+      const logEl = document.getElementById('log');
+      const stateEl = document.getElementById('state');
+      const lines = [];
+
+      if (window.openpulseDesktop) {
+        window.openpulseDesktop.onGatewayStatus((status) => {
+          stateEl.textContent =
+            status.state === 'starting'
+              ? 'starting'
+              : status.state === 'probing'
+                ? 'looking for a running gateway'
+                : status.state === 'restarting'
+                  ? 'restarting'
+                  : status.state;
+        });
+        window.openpulseDesktop.onGatewayLog(({ line }) => {
+          lines.push(line);
+          if (lines.length > 40) lines.shift();
+          logEl.hidden = false;
+          logEl.textContent = lines.join('\n');
+          logEl.scrollTop = logEl.scrollHeight;
+        });
+      }
+    </script>
+  </body>
+</html>

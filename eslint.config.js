@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: ['**/dist/**', '**/release/**', '**/coverage/**', '**/node_modules/**'],
   },
 
   js.configs.recommended,
@@ -30,11 +30,26 @@ export default tseslint.config(
     },
   },
 
-  // Node.js packages (gateway + cli) and root config files
+  // Node.js packages (gateway, cli, desktop main process) and config files
   {
-    files: ['packages/gateway/**/*.{ts,mjs}', 'packages/cli/**/*.ts', '*.js', 'packages/*/*.ts'],
+    files: [
+      'packages/gateway/**/*.{ts,mjs}',
+      'packages/cli/**/*.ts',
+      'apps/desktop/**/*.{ts,mjs}',
+      '*.js',
+      'packages/*/*.ts',
+      'apps/*/*.ts',
+    ],
     languageOptions: {
       globals: { ...globals.node },
+    },
+  },
+
+  // The desktop preload runs in a renderer with contextIsolation, so it sees browser globals too.
+  {
+    files: ['apps/desktop/src/main/preload.ts', 'apps/desktop/src/shell/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser },
     },
   },
 
@@ -56,13 +71,17 @@ export default tseslint.config(
 
   // Tests inspect untyped JSON payloads and mock internals; don't demand full type safety there.
   {
-    files: ['packages/*/test/**/*.ts', 'packages/*/src/**/*.test.{ts,tsx}'],
+    files: ['packages/*/test/**/*.ts', 'packages/*/src/**/*.test.{ts,tsx}', 'apps/*/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/no-base-to-string': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
     },
   },
 

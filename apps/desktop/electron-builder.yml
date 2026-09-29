@@ -1,0 +1,61 @@
+appId: ai.openpulse.desktop
+productName: OpenPulse
+copyright: OpenPulse contributors
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the compiled main process, preload and shell pages go inside the asar; everything the
+# gateway needs is staged as resources so it can be spawned as a real file on disk.
+files:
+  - dist/main/**
+  - dist/shell/**
+  - package.json
+  - '!**/*.map'
+
+extraResources:
+  - from: dist/gateway
+    to: gateway
+  - from: dist/dashboard
+    to: dashboard
+  - from: dist/skills
+    to: skills
+  - from: build/icon.ico
+    to: icon.ico
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  # Signing is opt-in: set CSC_LINK and CSC_KEY_PASSWORD to sign. Unsigned builds stay unsigned;
+  # nothing in the app or on the website claims otherwise.
+  signAndEditExecutable: true
+  artifactName: OpenPulse-Setup-${version}-${arch}.${ext}
+
+portable:
+  artifactName: OpenPulse-Portable-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: OpenPulse
+  uninstallDisplayName: OpenPulse ${version}
+  # The agent's workspace, sessions, memories and credentials live in ~/.openpulse and are never
+  # touched by install or uninstall.
+  deleteAppDataOnUninstall: false
+  differentialPackage: false
+  include: build/installer.nsh
+
+publish:
+  - provider: github
+    owner: steventa2024-lgtm
+    repo: openpulse
+    releaseType: release

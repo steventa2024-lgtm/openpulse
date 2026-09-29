@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>OpenPulse</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101012;
+        --panel: #19191c;
+        --line: #2c2c33;
+        --text: #ececf1;
+        --dim: #a6a6b3;
+        --accent: #f5654a;
+        --err: #f2555a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.6 'Inter',
+          -apple-system,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+      }
+      .card {
+        width: min(36rem, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--err);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.05rem;
+      }
+      p {
+        color: var(--dim);
+        margin: 0 0 1rem;
+        white-space: pre-wrap;
+      }
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      button {
+        font: inherit;
+        font-size: 13px;
+        padding: 0.4rem 0.9rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--line);
+        background: #141417;
+        color: var(--text);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+      pre {
+        margin-top: 1.25rem;
+        padding: 0.6rem;
+        background: #141417;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        font-family: ui-monospace, 'Cascadia Mono', monospace;
+        font-size: 11.5px;
+        color: var(--dim);
+        max-height: 12rem;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 id="title">Something went wrong</h1>
+      <p id="detail"></p>
+      <div class="row">
+        <button class="primary" id="retry">Restart the gateway</button>
+        <button id="logs">Open logs folder</button>
+        <button id="copy">Copy diagnostics</button>
+      </div>
+      <pre id="log" hidden></pre>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      document.getElementById('title').textContent = params.get('title') || 'Something went wrong';
+      document.getElementById('detail').textContent = params.get('detail') || '';
+
+      const api = window.openpulseDesktop;
+      const logEl = document.getElementById('log');
+
+      if (api) {
+        api.gatewayLog().then((lines) => {
+          if (!lines || lines.length === 0) return;
+          logEl.hidden = false;
+          logEl.textContent = lines.slice(-40).join('\n');
+        });
+        api.onGatewayStatus((status) => {
+          if (status.state === 'ready' || status.state === 'attached') api.reload();
+        });
+      }
+
+      document.getElementById('retry').addEventListener('click', () => api && api.restartGateway());
+      document.getElementById('logs').addEventListener('click', async () => {
+        if (!api) return;
+        const info = await api.diagnostics();
+        api.openPath(info.paths.stateDir + '\\logs');
+      });
+      document.getElementById('copy').addEventListener('click', async () => {
+        if (!api) return;
+        const info = await api.diagnostics();
+        await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+        document.getElementById('copy').textContent = 'Copied';
+      });
+    </script>
+  </body>
+</html>

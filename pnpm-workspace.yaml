@@ -1,7 +1,12 @@
 packages:
+  - 'apps/*'
   - packages/*
 
 # pnpm blocks dependency install scripts by default. esbuild's postinstall only
 # verifies its platform binary (shipped via optionalDependencies), so it isn't needed.
 allowBuilds:
   esbuild: false
+  # Electron's postinstall downloads the runtime the desktop app needs.
+  electron: true
+  # Only needed for Squirrel packaging, which this repo does not use (NSIS + portable).
+  electron-winstaller: false

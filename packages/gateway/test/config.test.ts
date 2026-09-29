@@ -9,6 +9,7 @@ import {
   patchForPath,
 } from '../src/config/store.js';
 import { parseDurationMs } from '../src/config/schema.js';
+import { FALLBACK_VERSION, VERSION } from '../src/version.js';
 import { tempDir } from './helpers.js';
 
 async function store(text?: string, env: NodeJS.ProcessEnv = {}) {
@@ -138,5 +139,15 @@ describe('config helpers', () => {
     expect(parseDurationMs('2h')).toBe(7_200_000);
     expect(parseDurationMs('0m')).toBe(0);
     expect(() => parseDurationMs('soon')).toThrow();
+  });
+});
+
+describe('version', () => {
+  it('matches package.json, including the value compiled into bundles', async () => {
+    const pkg = JSON.parse(
+      await fs.readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { version: string };
+    expect(VERSION).toBe(pkg.version);
+    expect(FALLBACK_VERSION).toBe(pkg.version);
   });
 });

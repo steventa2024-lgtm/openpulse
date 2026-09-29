@@ -1,0 +1,30 @@
+{
+  "name": "@openpulse/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenPulse desktop application for Windows",
+  "type": "module",
+  "main": "dist/main/index.cjs",
+  "scripts": {
+    "build:gateway": "node scripts/bundle-gateway.mjs",
+    "build:main": "node scripts/build-main.mjs",
+    "build": "pnpm run build:main && pnpm run build:gateway",
+    "dev": "pnpm run build && electron .",
+    "start": "electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "pnpm run build && electron-builder --win --publish never",
+    "package:dir": "pnpm run build && electron-builder --win --dir --publish never"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@openpulse/dashboard": "workspace:*",
+    "@openpulse/gateway": "workspace:*",
+    "@types/node": "^24.13.5",
+    "electron": "^40.4.2",
+    "electron-builder": "^26.0.24",
+    "esbuild": "^0.27.2"
+  },
+  "productName": "OpenPulse"
+}

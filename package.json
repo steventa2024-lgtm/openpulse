@@ -2,7 +2,7 @@
   "name": "openpulse",
   "version": "0.1.0",
   "private": true,
-  "description": "Self-hosted autonomous AI agent — gateway, CLI and dashboard monorepo",
+  "description": "Self-hosted autonomous AI agent \u2014 gateway, CLI and dashboard monorepo",
   "type": "module",
   "packageManager": "pnpm@11.23.0",
   "engines": {
@@ -21,7 +21,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
-    "clean": "pnpm -r exec node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "pnpm -r exec node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "desktop": "pnpm --filter @openpulse/desktop run dev",
+    "desktop:package": "pnpm --filter @openpulse/desktop run package"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
