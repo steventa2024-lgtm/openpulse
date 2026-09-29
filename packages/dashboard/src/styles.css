@@ -791,3 +791,400 @@ table.rows tr.clickable:hover td {
     display: none;
   }
 }
+
+/* ---- project switcher ------------------------------------------------------------------------- */
+
+.project-switcher {
+  width: auto;
+  max-width: 16rem;
+  margin-left: 1rem;
+  font-size: 12.5px;
+  padding: 0.25rem 0.5rem;
+}
+
+button.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ---- unified diff ----------------------------------------------------------------------------- */
+
+.diff-view {
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: auto;
+  max-height: 32rem;
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 3.2rem 3.2rem 1fr;
+  white-space: pre;
+}
+
+.diff-line .ln {
+  color: var(--text-faint);
+  text-align: right;
+  padding-right: 0.5rem;
+  user-select: none;
+  border-right: 1px solid var(--line-soft);
+}
+
+.diff-line .code {
+  padding-left: 0.6rem;
+}
+
+.diff-line.add {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.diff-line.del {
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+}
+.diff-line.hunk {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.diff-line.meta {
+  color: var(--text-faint);
+}
+
+/* ---- changes ---------------------------------------------------------------------------------- */
+
+.changes-layout {
+  display: grid;
+  grid-template-columns: 20rem 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.changes-files {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: 0.4rem;
+  align-self: start;
+}
+
+.changes-file {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+}
+
+.changes-file[aria-current='true'] {
+  background: var(--bg-inset);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.changes-diff {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: 0.75rem;
+  min-width: 0;
+}
+
+.diff-host {
+  height: 32rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ---- editor ----------------------------------------------------------------------------------- */
+
+.main:has(.editor-layout) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: 16rem 1fr auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-sidebar,
+.editor-assistant {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--line);
+}
+
+.editor-assistant {
+  width: 22rem;
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+
+.editor-assistant-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.editor-assistant-body .bubble {
+  font-size: 13px;
+  background: var(--bg-inset);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+}
+
+.editor-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.editor-sidebar-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-sidebar-head .spacer,
+.editor-tabs .spacer,
+.editor-toolbar .spacer,
+.editor-status .spacer {
+  flex: 1;
+}
+
+.editor-sidebar-head .icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 12px;
+}
+
+.editor-search {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tree {
+  flex: 1;
+  overflow: auto;
+  padding: 0.3rem 0;
+  font-size: 12.5px;
+}
+
+.tree-note {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  padding: 0.2rem 0.6rem;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.18rem 0.5rem;
+  cursor: pointer;
+  color: var(--text-dim);
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.tree-item:hover {
+  background: var(--bg-inset);
+  color: var(--text);
+}
+
+.tree-item[aria-current='true'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+
+.tree-item.hit {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.tree-item.hit span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+.tree-icon {
+  width: 0.8rem;
+  color: var(--text-faint);
+  flex: none;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-actions {
+  display: none;
+  gap: 0.15rem;
+}
+
+.tree-item:hover .tree-actions {
+  display: flex;
+}
+
+.tree-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 0.2rem;
+}
+
+.tree-actions button:hover {
+  color: var(--text);
+}
+
+.editor-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.editor-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  font-size: 12.5px;
+  min-height: 2.1rem;
+  padding-right: 0.6rem;
+  align-items: center;
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  height: 100%;
+}
+
+.editor-tab[aria-current='true'] {
+  background: var(--bg-inset);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.editor-tab-name,
+.editor-tab-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.4rem 0.3rem 0.4rem 0.7rem;
+}
+
+.editor-tab-close {
+  padding: 0.4rem 0.55rem 0.4rem 0.2rem;
+  color: var(--text-faint);
+}
+
+.editor-tab .dirty {
+  color: var(--accent);
+  margin-left: 0.3rem;
+}
+
+.editor-tab .conflict {
+  color: var(--err);
+  margin-left: 0.3rem;
+  font-weight: 700;
+}
+
+.editor-toolbar,
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar .btn {
+  padding: 0.2rem 0.55rem;
+  font-size: 12px;
+}
+
+.editor-status {
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 0;
+  color: var(--text-dim);
+}
+
+.editor-status label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.editor-status input[type='checkbox'] {
+  width: auto;
+}
+
+.editor-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .editor-layout {
+    grid-template-columns: 1fr;
+  }
+  .editor-sidebar {
+    display: none;
+  }
+  .changes-layout {
+    grid-template-columns: 1fr;
+  }
+}

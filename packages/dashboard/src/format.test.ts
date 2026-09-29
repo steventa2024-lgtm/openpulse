@@ -94,3 +94,14 @@ describe('parseLogLine', () => {
     expect(parseLogLine('{"level":"info"}')).toBeUndefined();
   });
 });
+
+describe('diff rows', () => {
+  it('numbers old and new lines from the hunk header', async () => {
+    const { diffRows } = await import('./components/DiffView.js');
+    const rows = diffRows('--- a/x\n+++ b/x\n@@ -3,2 +3,2 @@\n keep\n-old\n+new');
+    expect(rows.map((r) => r.kind)).toEqual(['meta', 'meta', 'hunk', 'context', 'del', 'add']);
+    expect(rows[3]).toMatchObject({ oldLine: 3, newLine: 3 });
+    expect(rows[4]).toMatchObject({ oldLine: 4 });
+    expect(rows[5]).toMatchObject({ newLine: 4 });
+  });
+});

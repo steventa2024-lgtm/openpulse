@@ -26,7 +26,7 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - [ ] **E — AI infrastructure** (model wizard, MCP, monitoring, skills registry)
 - [ ] **F — Developer automation** (multi-agent workflows, test runner)
 - [x] **G — SDK**
-- [ ] **H — Unified dashboard navigation**
+- [~] **H — Unified dashboard navigation**
 - [ ] **I — Public website**
 - [ ] **J — Packaging and release**
 - [ ] **K — Final verification**
@@ -60,6 +60,22 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 | No hosting credentials                           | Live website             | `apps/web` builds to static output, deploy documented                           |
 
 ## Log
+
+- **2026-09-28** — Phase H, workspace screens. Navigation regrouped into Home / Workspace / AI /
+  Automation / Developer tools / System with every existing screen kept; a project switcher in the
+  top bar drives all workspace pages. New pages: Projects (open folder, clone, switch, remove), Git
+  (status, per-file diff, commit, branches, history, fetch), Editor (Monaco bundled for offline use,
+  file tree with create/rename/delete, tabs, search, preferences, read-only mode, AI actions that
+  explain or propose reviewable changes), Changes (Monaco side-by-side and inline diff, per-file
+  approve/reject, apply with an automatic checkpoint), Checkpoints (save, previewed and typed-confirm
+  restore).
+  Verified in the browser against a live gateway and a real git repository: registered a project;
+  edited and saved a file (on disk); a second writer changed the file mid-edit and the editor flagged
+  the conflict, refused the stale save and kept the other writer's content; git showed the real
+  diff; approved one file of a two-file proposal, applied it with a checkpoint (the rejected file
+  was never created); restored the checkpoint from the UI and confirmed the file on disk. Three bugs
+  found and fixed on the way: the editor treated the echo of its own save as a conflict, Ctrl+S was
+  re-registered on every keystroke and could miss, and placeholder text was double-escaped.
 
 - **2026-09-28** — Phase G: `packages/sdk` (`@openpulse/sdk`). Zero runtime dependencies — native
   WebSocket and WebCrypto in Node 22+ and browsers — over the existing protocol, not a second API.

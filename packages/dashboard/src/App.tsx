@@ -15,6 +15,12 @@ import { NodesPage } from './pages/NodesPage.js';
 import { OverviewPage } from './pages/OverviewPage.js';
 import { SessionsPage } from './pages/SessionsPage.js';
 import { SkillsPage } from './pages/SkillsPage.js';
+import { ProjectsPage } from './pages/ProjectsPage.js';
+import { GitPage } from './pages/GitPage.js';
+import { EditorPage } from './pages/EditorPage.js';
+import { ChangesPage } from './pages/ChangesPage.js';
+import { CheckpointsPage } from './pages/CheckpointsPage.js';
+import { ProjectProvider, useProject } from './project/provider.js';
 
 interface Route {
   id: string;
@@ -25,26 +31,50 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
-  { id: 'chat', label: 'Chat', group: 'Chat', icon: '✦', element: ChatPage },
-  { id: 'overview', label: 'Overview', group: 'Control', icon: '◉', element: OverviewPage },
-  { id: 'channels', label: 'Channels', group: 'Control', icon: '⇄', element: ChannelsPage },
-  { id: 'instances', label: 'Instances', group: 'Control', icon: '❏', element: InstancesPage },
-  { id: 'sessions', label: 'Sessions', group: 'Control', icon: '☰', element: SessionsPage },
-  { id: 'cron', label: 'Cron Jobs', group: 'Control', icon: '⏱', element: CronPage },
-  { id: 'skills', label: 'Skills', group: 'Agent', icon: '✸', element: SkillsPage },
-  { id: 'nodes', label: 'Nodes', group: 'Agent', icon: '⬡', element: NodesPage },
-  { id: 'config', label: 'Config', group: 'Settings', icon: '⚙', element: ConfigPage },
-  { id: 'debug', label: 'Debug', group: 'Settings', icon: '❖', element: DebugPage },
-  { id: 'logs', label: 'Logs', group: 'Settings', icon: '▤', element: LogsPage },
-  { id: 'docs', label: 'Docs', group: 'Resources', icon: '◈', element: DocsPage },
+  // Home
+  { id: 'overview', label: 'Overview', group: 'Home', icon: '◉', element: OverviewPage },
+  // Workspace
+  { id: 'projects', label: 'Projects', group: 'Workspace', icon: '▦', element: ProjectsPage },
+  { id: 'editor', label: 'Editor', group: 'Workspace', icon: '✎', element: EditorPage },
+  { id: 'git', label: 'Git', group: 'Workspace', icon: '⑂', element: GitPage },
+  { id: 'changes', label: 'Changes', group: 'Workspace', icon: '±', element: ChangesPage },
+  {
+    id: 'checkpoints',
+    label: 'Checkpoints',
+    group: 'Workspace',
+    icon: '⟲',
+    element: CheckpointsPage,
+  },
+  // AI
+  { id: 'chat', label: 'Chat', group: 'AI', icon: '✦', element: ChatPage },
+  { id: 'sessions', label: 'Sessions', group: 'AI', icon: '☰', element: SessionsPage },
+  // Automation
+  { id: 'cron', label: 'Cron Jobs', group: 'Automation', icon: '⏱', element: CronPage },
+  { id: 'channels', label: 'Channels', group: 'Automation', icon: '⇄', element: ChannelsPage },
+  // Developer tools
+  { id: 'skills', label: 'Skills', group: 'Developer tools', icon: '✸', element: SkillsPage },
+  // System
+  { id: 'config', label: 'Config', group: 'System', icon: '⚙', element: ConfigPage },
+  { id: 'debug', label: 'Diagnostics', group: 'System', icon: '❖', element: DebugPage },
+  { id: 'logs', label: 'Logs', group: 'System', icon: '▤', element: LogsPage },
+  { id: 'nodes', label: 'Devices', group: 'System', icon: '⬡', element: NodesPage },
+  { id: 'instances', label: 'Instances', group: 'System', icon: '❏', element: InstancesPage },
+  { id: 'docs', label: 'Docs', group: 'System', icon: '◈', element: DocsPage },
 ];
 
-const GROUPS = ['Chat', 'Control', 'Agent', 'Settings', 'Resources'];
+const GROUPS = ['Home', 'Workspace', 'AI', 'Automation', 'Developer tools', 'System'];
+
+/** Routes used before the navigation was reorganised keep working. */
+const ALIASES: Record<string, string> = {};
 
 function useHashRoute(): [string, (id: string) => void] {
-  const [route, setRoute] = useState(() => window.location.hash.replace(/^#\/?/, '') || 'chat');
+  const read = () => {
+    const id = window.location.hash.replace(/^#\/?/, '') || 'overview';
+    return ALIASES[id] ?? id;
+  };
+  const [route, setRoute] = useState(read);
   useEffect(() => {
-    const onChange = () => setRoute(window.location.hash.replace(/^#\/?/, '') || 'chat');
+    const onChange = () => setRoute(read());
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
@@ -151,6 +181,7 @@ function Shell(): JSX.Element {
           <span className="sep">/</span>
           <span className="sub">Gateway Dashboard</span>
         </div>
+        <ProjectSwitcher onManage={() => navigate('projects')} />
         <div className="spacer" />
         <ApprovalsPill onClick={() => navigate('chat')} />
         <span className="faint mono" style={{ fontSize: 11 }}>
@@ -193,6 +224,40 @@ function Shell(): JSX.Element {
         )}
       </main>
     </div>
+  );
+}
+
+/** The active project, switchable from anywhere. Every workspace page follows it. */
+function ProjectSwitcher({ onManage }: { onManage: () => void }): JSX.Element | null {
+  const { projects, active, select } = useProject();
+  const { status } = useGateway();
+  if (status.state !== 'open') return null;
+  if (projects.length === 0) {
+    return (
+      <button className="btn ghost project-switcher" onClick={onManage}>
+        ＋ Add a project
+      </button>
+    );
+  }
+  return (
+    <select
+      className="project-switcher"
+      value={active?.id ?? ''}
+      onChange={(event) => {
+        if (event.target.value === '__manage') onManage();
+        else void select(event.target.value);
+      }}
+      aria-label="Active project"
+      title={active?.path}
+    >
+      {!active && <option value="">Choose a project…</option>}
+      {projects.map((project) => (
+        <option key={project.id} value={project.id}>
+          {project.name}
+        </option>
+      ))}
+      <option value="__manage">Manage projects…</option>
+    </select>
   );
 }
 
@@ -250,9 +315,11 @@ function Gate(): JSX.Element {
 export function App(): JSX.Element {
   return (
     <GatewayProvider>
-      <ToastProvider>
-        <Shell />
-      </ToastProvider>
+      <ProjectProvider>
+        <ToastProvider>
+          <Shell />
+        </ToastProvider>
+      </ProjectProvider>
     </GatewayProvider>
   );
 }
