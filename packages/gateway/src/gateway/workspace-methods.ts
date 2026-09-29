@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { z } from 'zod';
+import { ChangeError } from '../changes/proposals.js';
+import { CheckpointError } from '../checkpoints/service.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -55,6 +57,22 @@ function wrap<T>(fn: () => Promise<T>): Promise<T> {
       throw new GatewayError(code, error.message);
     }
     if (error instanceof GitError) throw new GatewayError('INVALID_REQUEST', error.message);
+    if (error instanceof CheckpointError) {
+      throw new GatewayError(
+        error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
+        error.message,
+      );
+    }
+    if (error instanceof ChangeError) {
+      throw new GatewayError(
+        error.code === 'NOT_FOUND'
+          ? 'NOT_FOUND'
+          : error.code === 'CONFLICT'
+            ? 'CONFLICT'
+            : 'INVALID_REQUEST',
+        error.message,
+      );
+    }
     throw error;
   });
 }
@@ -181,6 +199,166 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
     );
     const project = await projectOf(rt, projectId);
     return wrap(async () => ({ hits: await filesOf(rt, project).search(query, { maxResults }) }));
+  },
+
+  // ---- proposed changes ------------------------------------------------------------------------
+  'changes.list': async (p, { rt }) => {
+    const { projectId, all } = parse(ProjectRef.extend({ all: z.boolean().default(false) }), p);
+    if (all) return { changes: await rt.changes.list() };
+    const project = await projectOf(rt, projectId);
+    return { changes: await rt.changes.list(project.id) };
+  },
+
+  'changes.get': async (p, { rt }) => {
+    const { id, projectId } = parse(ProjectRef.extend({ id: z.string() }), p);
+    const set = await wrap(() => rt.changes.get(id));
+    const project = await projectOf(rt, projectId ?? set.projectId);
+    return wrap(() => rt.changes.view(id, filesOf(rt, project)));
+  },
+
+  'changes.create': async (p, ctx) => {
+    const { projectId, title, description, files } = parse(
+      ProjectRef.extend({
+        title: z.string().min(1).max(200),
+        description: z.string().default(''),
+        files: z
+          .array(
+            z.object({
+              path: z.string().min(1),
+              action: z.enum(['create', 'modify', 'delete']),
+              content: z.string().optional(),
+            }),
+          )
+          .min(1),
+      }),
+      p,
+    );
+    const project = await projectOf(ctx.rt, projectId);
+    return wrap(async () => {
+      const set = await ctx.rt.changes.create({
+        projectId: project.id,
+        title,
+        description,
+        origin: { kind: 'editor' },
+        files,
+        files_service: filesOf(ctx.rt, project),
+      });
+      ctx.broadcast('changes.changed', { id: set.id, projectId: project.id, reason: 'created' });
+      return { change: set };
+    });
+  },
+
+  'changes.decide': async (p, ctx) => {
+    const { id, decision, paths } = parse(
+      z.object({
+        id: z.string(),
+        decision: z.enum(['approved', 'rejected']),
+        /** Omit to decide every file in the set. */
+        paths: z.array(z.string()).optional(),
+      }),
+      p,
+    );
+    return wrap(async () => {
+      const set = await ctx.rt.changes.decide(id, decision, paths);
+      ctx.broadcast('changes.changed', { id, projectId: set.projectId, reason: decision });
+      return { change: set };
+    });
+  },
+
+  'changes.apply': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    return wrap(async () => {
+      const set = await ctx.rt.changes.get(id);
+      const project = await projectOf(ctx.rt, set.projectId);
+      const result = await ctx.rt.changes.apply(id, filesOf(ctx.rt, project));
+      ctx.broadcast('changes.changed', { id, projectId: set.projectId, reason: 'applied' });
+      for (const file of result.applied) {
+        ctx.broadcast('workspace.changed', {
+          projectId: set.projectId,
+          path: file,
+          reason: 'write',
+        });
+      }
+      return result;
+    });
+  },
+
+  'changes.remove': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    const removed = await ctx.rt.changes.remove(id);
+    ctx.broadcast('changes.changed', { id, reason: 'removed' });
+    return { removed };
+  },
+
+  // ---- checkpoints -----------------------------------------------------------------------------
+  'checkpoints.list': async (p, { rt }) => {
+    const { projectId } = parse(ProjectRef, p);
+    const project = await projectOf(rt, projectId);
+    return { checkpoints: await rt.checkpoints.list(project.id) };
+  },
+
+  'checkpoints.create': async (p, ctx) => {
+    const { projectId, name, reason } = parse(
+      ProjectRef.extend({
+        name: z.string().min(1).max(200),
+        reason: z.string().max(80).default('manual'),
+      }),
+      p,
+    );
+    const project = await projectOf(ctx.rt, projectId);
+    return wrap(async () => {
+      const checkpoint = await ctx.rt.checkpoints.create({
+        projectId: project.id,
+        projectDir: project.path,
+        name,
+        reason,
+      });
+      ctx.broadcast('checkpoints.changed', {
+        projectId: project.id,
+        id: checkpoint.id,
+        reason: 'created',
+      });
+      return { checkpoint };
+    });
+  },
+
+  /** What a restore would change. Always call this before restoring; the UI shows it. */
+  'checkpoints.preview': async (p, { rt }) => {
+    const { id, projectId } = parse(ProjectRef.extend({ id: z.string() }), p);
+    const project = await projectOf(rt, projectId);
+    return wrap(() => rt.checkpoints.preview(id, project.path));
+  },
+
+  'checkpoints.restore': async (p, ctx) => {
+    const { id, projectId, confirm } = parse(
+      ProjectRef.extend({
+        id: z.string(),
+        /** Must be true: restoring changes files on disk, so it is never implicit. */
+        confirm: z.boolean(),
+      }),
+      p,
+    );
+    if (!confirm) {
+      throw new GatewayError('INVALID_REQUEST', 'Restoring needs an explicit confirmation.');
+    }
+    const project = await projectOf(ctx.rt, projectId);
+    return wrap(async () => {
+      const result = await ctx.rt.checkpoints.restore({
+        id,
+        projectId: project.id,
+        projectDir: project.path,
+      });
+      ctx.broadcast('checkpoints.changed', { projectId: project.id, id, reason: 'restored' });
+      ctx.broadcast('workspace.changed', { projectId: project.id, path: '.', reason: 'restore' });
+      return result;
+    });
+  },
+
+  'checkpoints.remove': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    const removed = await ctx.rt.checkpoints.remove(id);
+    ctx.broadcast('checkpoints.changed', { id, reason: 'removed' });
+    return { removed };
   },
 
   // ---- git -------------------------------------------------------------------------------------

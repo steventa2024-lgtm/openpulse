@@ -145,6 +145,23 @@ export {
   type FsDecision,
 } from './policy/fs-policy.js';
 
+// Changes and checkpoints
+export {
+  ChangeStore,
+  ChangeError,
+  type ChangeSet,
+  type ChangeFile,
+  type ChangeSetView,
+  type ApplyResult,
+} from './changes/proposals.js';
+export { unifiedDiff, diffStat, diffHunks, type DiffHunk } from './changes/diff.js';
+export {
+  CheckpointService,
+  CheckpointError,
+  type Checkpoint,
+  type RestorePreview,
+} from './checkpoints/service.js';
+
 // Channels, cron, heartbeat, approvals
 export { ChannelManager } from './channels/manager.js';
 export { PairingStore, type PairingRequest } from './channels/pairing-store.js';

@@ -163,6 +163,8 @@ export class GatewayServer {
   }
 
   private wireEvents(): void {
+    this.rt.emitChange = (changeId, projectId) =>
+      this.broadcast('changes.changed', { id: changeId, projectId, reason: 'proposed' });
     this.rt.agent.on('chat', (e) => this.broadcast('chat', e));
     this.rt.agent.on('agent', (e) => this.broadcast('agent', e));
     this.rt.heartbeat.on('heartbeat', (e) => this.broadcast('heartbeat', e));

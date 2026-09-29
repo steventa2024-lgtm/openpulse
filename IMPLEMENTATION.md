@@ -61,6 +61,22 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Change proposals and checkpoints (gateway side). `ChangeStore` records proposed
+  edits with the hash each file had when proposed; approval is per file, applying re-checks the hash
+  so a stale patch is skipped with a reason instead of reverting newer work. Diffs are computed in
+  process (`changes/diff.ts`), so review works for untracked files and projects without git. The
+  agent proposes through a new `propose_change` tool, which stays available even in read-only mode
+  because it writes nothing. `CheckpointService` snapshots a project including uncommitted and
+  untracked work — in git repos through a scratch index and a real commit object, leaving the
+  developer's index and branch untouched, with line-ending translation off so restores are
+  byte-exact; elsewhere by copying. Restoring previews what it would change, always takes a
+  "before restoring" checkpoint first, and requires an explicit confirm.
+  New RPCs: changes.list/get/create/decide/apply/remove, checkpoints.list/create/preview/restore/remove.
+  Verified: 174 gateway tests (12 change, 6 checkpoint, including a rollback of a rollback).
+
+  Still open on these two features: the review and checkpoint UI, and wiring `git.commit` into the
+  approval flow.
+
 - **2026-09-28** — Phase C, gateway half. `FsPolicy` now bounds every filesystem tool by declared
   roots and a secret deny list (the deny globs were silently never matching until a test caught the
   pattern translation — fixed). Security modes select tools: read-only removes write/exec/browser,

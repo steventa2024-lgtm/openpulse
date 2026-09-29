@@ -26,6 +26,9 @@ import {
   type SkillStatus,
 } from './skills/loader.js';
 import { DEFAULT_DENY_PATTERNS, FsPolicy } from './policy/fs-policy.js';
+import { ChangeStore } from './changes/proposals.js';
+import { CheckpointService } from './checkpoints/service.js';
+import { FileService } from './workspace/file-service.js';
 import { ProjectStore } from './workspace/projects.js';
 import { ensureWorkspace } from './workspace/workspace.js';
 
@@ -58,6 +61,10 @@ export class Runtime {
   readonly devices: DeviceStore;
   readonly sessions: SessionStore;
   readonly projects: ProjectStore;
+  readonly changes: ChangeStore;
+  readonly checkpoints: CheckpointService;
+  /** Set by the server so agent-proposed changes reach connected clients immediately. */
+  emitChange: ((changeId: string, projectId: string) => void) | undefined;
   readonly processes = new ProcessRegistry();
   readonly browser: BrowserSession;
   readonly runner: AgentRunner;
@@ -89,6 +96,8 @@ export class Runtime {
     this.devices = new DeviceStore(this.paths.devicesDir);
     this.sessions = new SessionStore(this.paths.sessionsDir(this.agentId));
     this.projects = new ProjectStore(path.join(this.paths.stateDir, 'projects.json'));
+    this.changes = new ChangeStore(path.join(this.paths.stateDir, 'changes'));
+    this.checkpoints = new CheckpointService(path.join(this.paths.stateDir, 'checkpoints'));
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -99,6 +108,34 @@ export class Runtime {
       approvals: this.approvals,
       processes: this.processes,
       browser: this.browser,
+      changes: {
+        propose: async (input) => {
+          const project = await this.projects.active();
+          if (!project) {
+            throw new Error(
+              'No project is selected, so there is nowhere to propose changes. Ask the developer to add one under Workspace.',
+            );
+          }
+          const set = await this.changes.create({
+            projectId: project.id,
+            title: input.title,
+            ...(input.description !== undefined && { description: input.description }),
+            origin: { kind: 'agent', sessionKey: input.sessionKey, runId: input.runId },
+            files: input.files,
+            files_service: new FileService(project.path, this.fsPolicy),
+          });
+          this.emitChange?.(set.id, project.id);
+          return {
+            id: set.id,
+            files: set.files.map((file) => ({
+              path: file.path,
+              action: file.action,
+              additions: file.additions,
+              deletions: file.deletions,
+            })),
+          };
+        },
+      },
       cron: {
         status: () => Promise.resolve(this.cron.status()),
         list: (inc) => Promise.resolve(this.cron.list(inc)),

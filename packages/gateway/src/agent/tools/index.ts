@@ -1,5 +1,6 @@
 import type { OpenPulseConfig } from '../../config/schema.js';
 import { createBrowserTool, type BrowserSession } from './browser-tool.js';
+import { proposeChangeTool } from './change-tools.js';
 import { createExecTool, processTool } from './exec-tools.js';
 import { editTool, readTool, writeTool } from './fs-tools.js';
 import {
@@ -17,7 +18,7 @@ import { webFetchTool, webSearchTool } from './web-tools.js';
 
 /** Shorthands usable in tools.allow / tools.deny. */
 export const TOOL_GROUPS: Record<string, string[]> = {
-  'group:fs': ['read', 'write', 'edit'],
+  'group:fs': ['read', 'write', 'edit', 'propose_change'],
   'group:runtime': ['exec', 'process'],
   'group:web': ['web_search', 'web_fetch'],
   'group:ui': ['browser'],
@@ -40,6 +41,7 @@ export function buildTools(opts: ToolBuildOptions): AnyTool[] {
     readTool,
     writeTool,
     editTool,
+    proposeChangeTool,
     createExecTool(config.tools.exec.shell),
     processTool,
     ...(config.tools.web.search.enabled &&
@@ -63,6 +65,7 @@ export function buildTools(opts: ToolBuildOptions): AnyTool[] {
   // Security modes: read-only removes everything that can change this machine; custom mode lets an
   // operator switch individual tools off. Filesystem boundaries are enforced inside the tools.
   const security = config.security;
+  // propose_change only records a proposal, so it stays available in read-only mode.
   const writeTools = new Set(['write', 'edit', 'exec', 'process', 'browser']);
   const securityDenied = (name: string): boolean => {
     if (security.mode === 'read-only' && writeTools.has(name)) return true;

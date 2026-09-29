@@ -46,7 +46,7 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
   private readonly systemEvents = new Map<string, string[]>();
   private readonly idempotency = new Map<
     string,
-    { runId: string; status: 'in_flight' | 'ok'; at: number }
+    { runId: string; status: 'in_flight' | 'ok' | 'error'; at: number }
   >();
   private active = 0;
   private readonly waiters: (() => void)[] = [];
@@ -105,7 +105,7 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
    */
   async dispatch(p: DispatchParams): Promise<{
     runId: string;
-    status: 'started' | 'in_flight' | 'ok' | 'command';
+    status: 'started' | 'in_flight' | 'ok' | 'command' | 'error';
     reply?: string;
   }> {
     this.pruneIdempotency();
@@ -123,10 +123,19 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
     const runId = randomUUID();
     if (p.idempotencyKey)
       this.idempotency.set(p.idempotencyKey, { runId, status: 'in_flight', at: Date.now() });
-    void this.enqueue(p, runId).then(() => {
-      if (p.idempotencyKey)
-        this.idempotency.set(p.idempotencyKey, { runId, status: 'ok', at: Date.now() });
-    });
+    void this.enqueue(p, runId).then(
+      () => {
+        if (p.idempotencyKey)
+          this.idempotency.set(p.idempotencyKey, { runId, status: 'ok', at: Date.now() });
+      },
+      // A dispatched run reports its own failure through chat events; this keeps a rejection
+      // here from surfacing as an unhandled rejection and taking the process down.
+      (error: unknown) => {
+        this.deps.log.warn(`run ${runId} failed: ${(error as Error).message}`);
+        if (p.idempotencyKey)
+          this.idempotency.set(p.idempotencyKey, { runId, status: 'error', at: Date.now() });
+      },
+    );
     return { runId, status: 'started' };
   }
 
@@ -176,7 +185,9 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
     } finally {
       this.release();
       lane.running = undefined;
-      void this.drain(key);
+      void this.drain(key).catch((error: unknown) =>
+        this.deps.log.warn(`session lane ${key} stopped: ${(error as Error).message}`),
+      );
     }
   }
 

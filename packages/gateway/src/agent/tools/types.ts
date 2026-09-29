@@ -40,6 +40,8 @@ export interface ToolContext {
 /** Gateway services tools call into (kept as an interface to avoid import cycles). */
 export interface ToolServices {
   approvals: ExecApprovals;
+  /** Propose reviewable edits to the active project; absent when no project is selected. */
+  changes?: ChangeToolApi;
   processes: ProcessRegistry;
   browser: BrowserSession;
   cron: CronToolApi;
@@ -135,4 +137,18 @@ export function clip(text: string, max: number): string {
   const head = Math.floor(max * 0.4);
   const tail = max - head;
   return `${text.slice(0, head)}\n\n[… ${text.length - head - tail} characters omitted …]\n\n${text.slice(-tail)}`;
+}
+
+/** How tools record a proposed change set for the developer to review. */
+export interface ChangeToolApi {
+  propose(input: {
+    title: string;
+    description?: string;
+    files: { path: string; action: 'create' | 'modify' | 'delete'; content?: string }[];
+    sessionKey: string;
+    runId: string;
+  }): Promise<{
+    id: string;
+    files: { path: string; action: string; additions: number; deletions: number }[];
+  }>;
 }

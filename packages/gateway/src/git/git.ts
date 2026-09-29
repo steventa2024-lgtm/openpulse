@@ -69,7 +69,11 @@ export class GitRepo {
     private readonly options: { timeoutMs?: number; gitPath?: string } = {},
   ) {}
 
-  async git(args: string[], input?: string): Promise<string> {
+  /** Run git in this repository. `env` is merged over the process environment for this call only. */
+  async git(
+    args: string[],
+    options: { input?: string; env?: NodeJS.ProcessEnv } = {},
+  ): Promise<string> {
     try {
       const { stdout } = await run(this.options.gitPath ?? 'git', args, {
         cwd: this.dir,
@@ -77,7 +81,8 @@ export class GitRepo {
         timeout: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         windowsHide: true,
         encoding: 'utf8',
-        ...(input !== undefined && { input }),
+        ...(options.env && { env: { ...process.env, ...options.env } }),
+        ...(options.input !== undefined && { input: options.input }),
       } as never);
       return typeof stdout === 'string' ? stdout : String(stdout);
     } catch (error) {
@@ -273,7 +278,7 @@ export class GitRepo {
   }
 
   async hashObject(content: string): Promise<string> {
-    return (await this.git(['hash-object', '-w', '--stdin'], content)).trim();
+    return (await this.git(['hash-object', '-w', '--stdin'], { input: content })).trim();
   }
 }
 
