@@ -309,9 +309,15 @@ export function resetGitAvailability(): void {
 export async function gitClone(
   url: string,
   targetDir: string,
-  options: { depth?: number; branch?: string; timeoutMs?: number } = {},
+  options: {
+    depth?: number;
+    branch?: string;
+    timeoutMs?: number;
+    /** Keep upstream bytes exactly (no line-ending conversion) — shell scripts break with CRLF. */
+    exactBytes?: boolean;
+  } = {},
 ): Promise<void> {
-  const args = ['clone'];
+  const args = options.exactBytes ? ['-c', 'core.autocrlf=false', 'clone'] : ['clone'];
   if (options.depth) args.push('--depth', String(options.depth));
   if (options.branch) args.push('--branch', options.branch);
   args.push('--', url, targetDir);

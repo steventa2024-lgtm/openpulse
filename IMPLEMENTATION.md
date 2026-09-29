@@ -61,6 +61,14 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Skills registry (gateway side). `SkillRegistry` validates a skill folder
+  (frontmatter, name, size) and lists every script it ships; installs from a local folder or a git
+  repository (byte-exact clone, `.git` stripped, commit recorded); updates from the recorded origin;
+  scaffolds new skills from a starter template; removes managed and workspace skills while refusing
+  bundled ones and anything outside the skill directories. Nothing a skill ships is run on install —
+  a test plants an `install.sh` that would write a marker file and checks it never appears.
+  New RPCs: skills.inspect/validate/install/create/remove/upgrade.
+
 - **2026-09-28** — Test runner and debugger (gateway side). `detectTestSuites` finds the test
   commands a project declares (npm/pnpm/yarn/bun scripts, pytest, cargo, go, maven, gradle, dotnet)
   and checks each tool is installed, reporting unavailable suites with the reason. `TestRunner`

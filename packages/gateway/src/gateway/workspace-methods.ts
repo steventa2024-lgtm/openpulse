@@ -6,6 +6,7 @@ import { McpError, renderToolResult } from '../mcp/client.js';
 import { detectLocalProviders, inspectOllamaModel } from '../models/detect.js';
 import { detectTestSuites } from '../testing/detect.js';
 import { sanitizeValue } from '../debug/sanitize.js';
+import { SkillRegistry, SkillRegistryError } from '../skills/registry.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -44,6 +45,10 @@ function filesOf(rt: Runtime, project: Project): FileService {
   return new FileService(project.path, rt.fsPolicy);
 }
 
+function registryOf(rt: Runtime): SkillRegistry {
+  return new SkillRegistry(rt.paths.managedSkillsDir, path.join(rt.workspaceDir, 'skills'));
+}
+
 function repoOf(project: Project): GitRepo {
   return new GitRepo(project.path);
 }
@@ -61,6 +66,12 @@ function wrap<T>(fn: () => Promise<T>): Promise<T> {
       throw new GatewayError(code, error.message);
     }
     if (error instanceof GitError) throw new GatewayError('INVALID_REQUEST', error.message);
+    if (error instanceof SkillRegistryError) {
+      throw new GatewayError(
+        error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
+        error.message,
+      );
+    }
     if (error instanceof McpError) {
       throw new GatewayError(
         error.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
@@ -794,6 +805,107 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
       },
       secrets,
     );
+  },
+
+  // ---- skills registry -----------------------------------------------------------------------
+  /** Full detail for one skill: instructions, requirements, scripts, where it came from. */
+  'skills.inspect': async (p, { rt }) => {
+    const { name } = parse(z.object({ name: z.string().min(1) }), p);
+    const { skills } = await rt.loadAllSkills();
+    const skill = skills.find((s) => s.name === name);
+    if (!skill) throw new GatewayError('NOT_FOUND', `No skill called "${name}".`);
+    const status = (await rt.skillStatus()).find((s) => s.name === name);
+    const validation = await registryOf(rt).validate(skill.baseDir);
+    return {
+      skill: {
+        name: skill.name,
+        description: skill.description,
+        source: skill.source,
+        baseDir: skill.baseDir,
+        filePath: skill.filePath,
+        homepage: skill.homepage,
+        userInvocable: skill.userInvocable,
+        requires: skill.metadata.requires ?? {},
+        instructions: skill.body,
+      },
+      status,
+      scripts: validation.executables,
+      warnings: validation.warnings,
+      origin: await registryOf(rt).origin(name),
+    };
+  },
+
+  'skills.validate': async (p, { rt }) => {
+    const { path: dir } = parse(z.object({ path: z.string().min(1) }), p);
+    return registryOf(rt).validate(path.resolve(dir));
+  },
+
+  'skills.install': async (p, ctx) => {
+    const input = parse(
+      z.discriminatedUnion('from', [
+        z.object({
+          from: z.literal('local'),
+          path: z.string().min(1),
+          overwrite: z.boolean().default(false),
+        }),
+        z.object({
+          from: z.literal('git'),
+          url: z.string().min(1).max(500),
+          subdir: z.string().optional(),
+          branch: z.string().optional(),
+          overwrite: z.boolean().default(false),
+        }),
+      ]),
+      p,
+    );
+    return wrap(async () => {
+      const registry = registryOf(ctx.rt);
+      const installed =
+        input.from === 'local'
+          ? await registry.importLocal(path.resolve(input.path), { overwrite: input.overwrite })
+          : await registry.installFromGit(input.url, {
+              overwrite: input.overwrite,
+              ...(input.subdir !== undefined && { subdir: input.subdir }),
+              ...(input.branch !== undefined && { branch: input.branch }),
+            });
+      ctx.rt.log.info(`skill installed: ${installed.name}`, { from: input.from });
+      ctx.broadcast('skills.changed', { name: installed.name, reason: 'installed' });
+      return { installed, validation: await registry.validate(installed.dir) };
+    });
+  },
+
+  'skills.create': async (p, ctx) => {
+    const { name, description, where } = parse(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().min(1).max(400),
+        where: z.enum(['workspace', 'managed']).default('workspace'),
+      }),
+      p,
+    );
+    return wrap(async () => {
+      const created = await registryOf(ctx.rt).create({ name, description, where });
+      ctx.broadcast('skills.changed', { name, reason: 'created' });
+      return { created };
+    });
+  },
+
+  'skills.remove': async (p, ctx) => {
+    const { name } = parse(z.object({ name: z.string().min(1) }), p);
+    return wrap(async () => {
+      const result = await registryOf(ctx.rt).remove(name);
+      ctx.broadcast('skills.changed', { name, reason: 'removed' });
+      return result;
+    });
+  },
+
+  'skills.upgrade': async (p, ctx) => {
+    const { name } = parse(z.object({ name: z.string().min(1) }), p);
+    return wrap(async () => {
+      const updated = await registryOf(ctx.rt).update(name);
+      ctx.broadcast('skills.changed', { name, reason: 'updated' });
+      return { updated };
+    });
   },
 
   // ---- git -------------------------------------------------------------------------------------

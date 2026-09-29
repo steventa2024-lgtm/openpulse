@@ -163,6 +163,15 @@ export {
   type ModelSummary,
 } from './telemetry/store.js';
 
+// Skills registry
+export {
+  SkillRegistry,
+  SkillRegistryError,
+  starterTemplate,
+  type SkillValidation,
+  type InstalledSkillInfo,
+} from './skills/registry.js';
+
 // Test runner and debugger
 export { detectTestSuites, onPath as commandOnPath, type TestSuite } from './testing/detect.js';
 export { TestRunner, parseFailures, type TestRun, type TestFailure } from './testing/runner.js';
