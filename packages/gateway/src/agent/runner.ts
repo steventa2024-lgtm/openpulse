@@ -1,6 +1,7 @@
 import { isStepCount, jsonSchema, streamText, tool, type ToolSet } from 'ai';
 import type { OpenPulseConfig, ThinkingLevel } from '../config/schema.js';
 import type { Logger } from '../infra/logger.js';
+import type { RunRecord, ToolRecord } from '../telemetry/store.js';
 import type { FsPolicy } from '../policy/fs-policy.js';
 import { mainSessionKey } from '../sessions/keys.js';
 import type { SessionStore } from '../sessions/store.js';
@@ -91,6 +92,11 @@ export interface RunnerDeps {
   services: ToolServices;
   /** Connected MCP servers, read per run so newly connected tools appear without a restart. */
   mcp?: () => McpToolBridge;
+  /** Receives what each run and tool call actually cost; nothing is estimated. */
+  telemetry?: {
+    run(record: RunRecord): void;
+    tool(record: ToolRecord): void;
+  };
   log: Logger;
   modelFactory?: ModelFactory;
 }
@@ -107,6 +113,7 @@ export class AgentRunner {
   }
 
   async run(p: RunParams): Promise<RunResult> {
+    const runStartedAt = Date.now();
     const config = this.deps.config();
     const { sessions, agentId } = this.deps;
     const log = this.deps.log.child(p.runId.slice(0, 8));
@@ -158,6 +165,14 @@ export class AgentRunner {
     const fail = async (message: string): Promise<RunResult> => {
       log.error(`run failed: ${message}`);
       agentEvent('lifecycle', { phase: 'error', error: message });
+      this.recordRun(p, {
+        model: modelName,
+        startedAt: runStartedAt,
+        usage,
+        toolCalls,
+        status: 'error',
+        error: message,
+      });
       chatEvent({ state: 'error', errorMessage: message });
       await appendTranscript(file, entry.sessionId, {
         role: 'assistant',
@@ -367,6 +382,14 @@ export class AgentRunner {
       const reason = timeout.aborted ? 'timeout' : 'aborted';
       log.info(`run ${reason}`);
       agentEvent('lifecycle', { phase: 'end', aborted: true, reason });
+      this.recordRun(p, {
+        model: modelName,
+        startedAt: runStartedAt,
+        usage,
+        toolCalls,
+        status: 'aborted',
+        ...(reason && { error: reason }),
+      });
       chatEvent({
         state: 'aborted',
         message: {
@@ -396,6 +419,13 @@ export class AgentRunner {
     const finalText = lastStepText || runText.trim();
     await this.bumpSession(p.sessionKey, usage, modelName, false);
     agentEvent('lifecycle', { phase: 'end', usage, toolCalls });
+    this.recordRun(p, {
+      model: modelName,
+      startedAt: runStartedAt,
+      usage,
+      toolCalls,
+      status: 'ok',
+    });
     chatEvent({
       state: 'final',
       message: {
@@ -419,6 +449,34 @@ export class AgentRunner {
       toolCalls,
       usage,
     };
+  }
+
+  /** Hand one finished run to telemetry, using only values the run actually produced. */
+  private recordRun(
+    p: RunParams,
+    info: {
+      model: string;
+      startedAt: number;
+      usage: { input: number; output: number };
+      toolCalls: number;
+      status: RunRecord['status'];
+      error?: string;
+    },
+  ): void {
+    this.deps.telemetry?.run({
+      ts: Date.now(),
+      runId: p.runId,
+      sessionKey: p.sessionKey,
+      model: info.model,
+      provider: info.model.split('/')[0] ?? '',
+      durationMs: Date.now() - info.startedAt,
+      inputTokens: info.usage.input,
+      outputTokens: info.usage.output,
+      toolCalls: info.toolCalls,
+      status: info.status,
+      ...(info.error && { error: info.error }),
+      ...(p.source?.kind && { source: p.source.kind }),
+    });
   }
 
   private wrapTool(
@@ -454,6 +512,14 @@ export class AgentRunner {
             result: r.content.slice(0, 8000),
             durationMs: Date.now() - started,
           });
+          this.deps.telemetry?.tool({
+            ts: Date.now(),
+            runId: ctx.runId,
+            sessionKey: ctx.sessionKey,
+            tool: t.name,
+            durationMs: Date.now() - started,
+            isError: Boolean(r.isError),
+          });
           ctx.log.info(`${t.name}: ${summary}`, {
             ms: Date.now() - started,
             error: r.isError ? true : undefined,
@@ -472,6 +538,14 @@ export class AgentRunner {
             isError: true,
             result: msg,
             durationMs: Date.now() - started,
+          });
+          this.deps.telemetry?.tool({
+            ts: Date.now(),
+            runId: ctx.runId,
+            sessionKey: ctx.sessionKey,
+            tool: t.name,
+            durationMs: Date.now() - started,
+            isError: true,
           });
           ctx.log.warn(msg);
           return `ERROR: ${msg}`;

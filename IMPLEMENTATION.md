@@ -61,6 +61,18 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Model setup and monitoring (gateway side). `detectLocalProviders` probes Ollama
+  and LM Studio and reports what is installed, what is running and what to do when neither is —
+  no invented model lists. `inspectOllamaModel` reads the real context window and tool-calling
+  capability, and warns about the 4k default window that quietly truncates agent prompts.
+  `Runtime.testModel` runs an actual turn plus a tool-call probe, because that is the only honest
+  way to say a model works. `TelemetryStore` records what the agent loop measured — provider token
+  counts, wall-clock duration, tool calls, errors, aborts — persisted as JSONL and summarised per
+  model, per session and per hour. Nothing is estimated: a provider that reports no usage shows
+  zero, not a guess.
+  New RPCs: models.detect/inspect/test/use/credentials.set, telemetry.summary/runs.
+  Verified: 204 gateway tests, 11 new covering detection, inspection warnings and summaries.
+
 - **2026-09-28** — MCP support (gateway side). `McpClient` speaks JSON-RPC 2.0 over stdio
   (newline-delimited) and HTTP (JSON or single-event SSE), covering initialize, tools/list and
   tools/call. `McpManager` connects the servers declared in `openpulse.json`, reports health, and

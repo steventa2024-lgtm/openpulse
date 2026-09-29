@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ChangeError } from '../changes/proposals.js';
 import { CheckpointError } from '../checkpoints/service.js';
 import { McpError, renderToolResult } from '../mcp/client.js';
+import { detectLocalProviders, inspectOllamaModel } from '../models/detect.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -471,6 +472,146 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
         durationMs: Date.now() - started,
       };
     });
+  },
+
+  // ---- models --------------------------------------------------------------------------------
+  /** What is installed and reachable on this machine, plus the keys configured for hosted APIs. */
+  'models.detect': async (_p, { rt }) => {
+    const providers = await detectLocalProviders();
+    const configured = rt.cfg.models.providers;
+    return {
+      local: providers,
+      hosted: [
+        {
+          id: 'anthropic',
+          label: 'Anthropic',
+          configured: Boolean(configured.anthropic?.apiKey || process.env.ANTHROPIC_API_KEY),
+          source: configured.anthropic?.apiKey
+            ? 'config'
+            : process.env.ANTHROPIC_API_KEY
+              ? 'environment'
+              : null,
+        },
+        {
+          id: 'openai',
+          label: 'OpenAI',
+          configured: Boolean(configured.openai?.apiKey || process.env.OPENAI_API_KEY),
+          source: configured.openai?.apiKey
+            ? 'config'
+            : process.env.OPENAI_API_KEY
+              ? 'environment'
+              : null,
+        },
+      ],
+      current: {
+        primary: rt.cfg.agents.defaults.model.primary,
+        fallbacks: rt.cfg.agents.defaults.model.fallbacks,
+        thinking: rt.cfg.agents.defaults.thinkingDefault,
+      },
+    };
+  },
+
+  /** Ollama's own view of a model: context window, tool support, and what that means for us. */
+  'models.inspect': async (p) => {
+    const { model } = parse(z.object({ model: z.string().min(1) }), p);
+    const name = model.startsWith('ollama/') ? model.slice('ollama/'.length) : model;
+    return inspectOllamaModel(name);
+  },
+
+  /**
+   * Actually run the model once. This is the only honest way to know a provider works, so the
+   * wizard calls it before saving a choice.
+   */
+  'models.test': async (p, { rt }) => {
+    const { model, prompt } = parse(
+      z.object({
+        model: z.string().min(1),
+        prompt: z.string().max(400).default('Reply with the single word: ready'),
+      }),
+      p,
+    );
+    const started = Date.now();
+    try {
+      const result = await rt.testModel(model, prompt);
+      return {
+        ok: true,
+        model,
+        durationMs: Date.now() - started,
+        text: result.text.slice(0, 500),
+        usage: result.usage,
+        toolCallingSupported: result.toolCallingSupported,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        model,
+        durationMs: Date.now() - started,
+        error: (error as Error).message,
+      };
+    }
+  },
+
+  'models.use': async (p, ctx) => {
+    const { primary, fallbacks } = parse(
+      z.object({ primary: z.string().min(1), fallbacks: z.array(z.string()).optional() }),
+      p,
+    );
+    await configWriteOrThrow(() =>
+      ctx.rt.config.patch({
+        agents: { defaults: { model: { primary, ...(fallbacks !== undefined && { fallbacks }) } } },
+      }),
+    );
+    return {
+      primary: ctx.rt.cfg.agents.defaults.model.primary,
+      fallbacks: ctx.rt.cfg.agents.defaults.model.fallbacks,
+    };
+  },
+
+  /** Store a provider API key in the config file (never echoed back to clients). */
+  'models.credentials.set': async (p, ctx) => {
+    const { provider, apiKey } = parse(
+      z.object({ provider: z.enum(['anthropic', 'openai']), apiKey: z.string().max(400) }),
+      p,
+    );
+    await configWriteOrThrow(() =>
+      ctx.rt.config.patch({ models: { providers: { [provider]: { apiKey: apiKey || null } } } }),
+    );
+    return { provider, configured: Boolean(apiKey) };
+  },
+
+  // ---- telemetry -----------------------------------------------------------------------------
+  'telemetry.summary': (p, { rt }) => {
+    const { hours, sessionKey } = parse(
+      z.object({
+        hours: z.number().int().min(1).max(720).default(24),
+        sessionKey: z.string().optional(),
+      }),
+      p,
+    );
+    return rt.telemetry.summary({
+      since: Date.now() - hours * 3_600_000,
+      ...(sessionKey !== undefined && { sessionKey }),
+    });
+  },
+
+  'telemetry.runs': (p, { rt }) => {
+    const { model, sessionKey, limit, hours } = parse(
+      z.object({
+        model: z.string().optional(),
+        sessionKey: z.string().optional(),
+        limit: z.number().int().min(1).max(1000).default(100),
+        hours: z.number().int().min(1).max(720).optional(),
+      }),
+      p,
+    );
+    return {
+      runs: rt.telemetry.list({
+        ...(model !== undefined && { model }),
+        ...(sessionKey !== undefined && { sessionKey }),
+        ...(hours !== undefined && { since: Date.now() - hours * 3_600_000 }),
+        limit,
+      }),
+    };
   },
 
   // ---- git -------------------------------------------------------------------------------------

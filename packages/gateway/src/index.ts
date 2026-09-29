@@ -145,6 +145,24 @@ export {
   type FsDecision,
 } from './policy/fs-policy.js';
 
+// Model detection and telemetry
+export {
+  detectLocalProviders,
+  detectOllama,
+  detectLmStudio,
+  inspectOllamaModel,
+  type ProviderProbe,
+  type DetectedModel,
+  type ModelDetails,
+} from './models/detect.js';
+export {
+  TelemetryStore,
+  type RunRecord,
+  type ToolRecord,
+  type TelemetrySummary,
+  type ModelSummary,
+} from './telemetry/store.js';
+
 // MCP
 export {
   McpClient,

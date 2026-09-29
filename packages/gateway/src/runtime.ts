@@ -1,6 +1,7 @@
 import path from 'node:path';
+import { generateText, jsonSchema, tool } from 'ai';
 import { AgentService } from './agent/agent-service.js';
-import type { ModelFactory } from './agent/models.js';
+import { createModel, parseModelRef, type ModelFactory } from './agent/models.js';
 import { ProcessRegistry } from './agent/process-registry.js';
 import { AgentRunner } from './agent/runner.js';
 import { BrowserSession } from './agent/tools/browser-tool.js';
@@ -15,6 +16,7 @@ import { DeviceStore } from './gateway/devices.js';
 import { HeartbeatRunner } from './heartbeat/runner.js';
 import { LogSink, type LogRecord, type Logger } from './infra/logger.js';
 import { McpManager } from './mcp/manager.js';
+import { TelemetryStore } from './telemetry/store.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
@@ -66,6 +68,7 @@ export class Runtime {
   readonly changes: ChangeStore;
   readonly checkpoints: CheckpointService;
   readonly mcp: McpManager;
+  readonly telemetry: TelemetryStore;
   /** Set by the server so agent-proposed changes reach connected clients immediately. */
   emitChange: ((changeId: string, projectId: string) => void) | undefined;
   readonly processes = new ProcessRegistry();
@@ -102,6 +105,7 @@ export class Runtime {
     this.changes = new ChangeStore(path.join(this.paths.stateDir, 'changes'));
     this.checkpoints = new CheckpointService(path.join(this.paths.stateDir, 'checkpoints'));
     this.mcp = new McpManager({ config: () => this.cfg, log: this.logs.logger('mcp') });
+    this.telemetry = new TelemetryStore(path.join(this.paths.stateDir, 'telemetry'));
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -217,6 +221,10 @@ export class Runtime {
       workspace: () => this.workspaceDir,
       fsPolicy: () => this.fsPolicy,
       mcp: () => this.mcp,
+      telemetry: {
+        run: (record) => this.telemetry.recordRun(record),
+        tool: (record) => this.telemetry.recordTool(record),
+      },
       sessions: this.sessions,
       skills: () => this.activeSkills(),
       services,
@@ -269,6 +277,7 @@ export class Runtime {
     await ensureWorkspace(rt.workspaceDir, { skipBootstrap: rt.cfg.agents.defaults.skipBootstrap });
     await rt.approvals.load();
     await rt.projects.load();
+    await rt.telemetry.load();
     await rt.refreshFsPolicy();
     return rt;
   }
@@ -305,6 +314,53 @@ export class Runtime {
 
   get fsPolicy(): FsPolicy {
     return this.fsPolicyValue;
+  }
+
+  /**
+   * Run one short turn against a model to see whether it actually works.
+   *
+   * Used by the setup wizard: a provider that answers here is genuinely reachable and configured,
+   * and the reply tells us whether tool calling came back as expected.
+   */
+  async testModel(
+    ref: string,
+    prompt: string,
+  ): Promise<{
+    text: string;
+    usage: { input: number; output: number };
+    toolCallingSupported: boolean;
+  }> {
+    const modelRef = parseModelRef(ref, this.cfg);
+    const model = (this.options.modelFactory ?? createModel)(modelRef, this.cfg);
+    const result = await generateText({
+      model,
+      prompt,
+      abortSignal: AbortSignal.timeout(60_000),
+    });
+    // Ask for a trivial tool call to see whether the provider supports tools at all.
+    let toolCallingSupported: boolean;
+    try {
+      const probe = await generateText({
+        model,
+        prompt: 'Call the ping tool with the value "x".',
+        tools: {
+          ping: tool({
+            description: 'A test tool.',
+            inputSchema: jsonSchema({ type: 'object', properties: { value: { type: 'string' } } }),
+            execute: () => Promise.resolve('pong'),
+          }),
+        },
+        abortSignal: AbortSignal.timeout(60_000),
+      });
+      toolCallingSupported = probe.steps.some((step) => step.toolCalls.length > 0);
+    } catch {
+      toolCallingSupported = false;
+    }
+    return {
+      text: result.text,
+      usage: { input: result.usage.inputTokens ?? 0, output: result.usage.outputTokens ?? 0 },
+      toolCallingSupported,
+    };
   }
 
   canonical(key: string | undefined): string {
@@ -371,6 +427,7 @@ export class Runtime {
     await this.mcp.stop();
     await this.browser.stop();
     this.log.info('runtime stopped');
+    await this.telemetry.flush();
     await this.logs.flush();
   }
 
