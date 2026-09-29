@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { ExecApprovals } from '../../approvals/exec-approvals.js';
 import type { OpenPulseConfig } from '../../config/schema.js';
 import type { Logger } from '../../infra/logger.js';
+import type { FsPolicy } from '../../policy/fs-policy.js';
 import type { ProcessRegistry } from '../process-registry.js';
 import type { BrowserSession } from './browser-tool.js';
 
@@ -25,6 +26,8 @@ export interface ToolContext {
   runId: string;
   /** Agent workspace; the working directory for relative paths and exec. */
   workspace: string;
+  /** Filesystem boundary the tools enforce for this run. */
+  fsPolicy: FsPolicy;
   config: OpenPulseConfig;
   log: Logger;
   signal?: AbortSignal;

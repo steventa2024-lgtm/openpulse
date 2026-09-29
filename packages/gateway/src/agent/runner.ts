@@ -1,6 +1,7 @@
 import { isStepCount, jsonSchema, streamText, tool, type ToolSet } from 'ai';
 import type { OpenPulseConfig, ThinkingLevel } from '../config/schema.js';
 import type { Logger } from '../infra/logger.js';
+import type { FsPolicy } from '../policy/fs-policy.js';
 import { mainSessionKey } from '../sessions/keys.js';
 import type { SessionStore } from '../sessions/store.js';
 import {
@@ -82,6 +83,8 @@ export interface RunnerDeps {
   agentId: string;
   config: () => OpenPulseConfig;
   workspace: () => string;
+  /** The filesystem boundary the tools enforce; re-read each run so config changes take effect. */
+  fsPolicy: () => FsPolicy;
   sessions: SessionStore;
   skills: () => Promise<SkillDefinition[]>;
   services: ToolServices;
@@ -192,6 +195,7 @@ export class AgentRunner {
       sessionKey: p.sessionKey,
       runId: p.runId,
       workspace,
+      fsPolicy: this.deps.fsPolicy(),
       config,
       log: log.child('tool'),
       extraEnv: skillEnv(skills, config),

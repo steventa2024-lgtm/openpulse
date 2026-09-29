@@ -117,6 +117,34 @@ export {
   loadBootstrapFiles,
 } from './workspace/workspace.js';
 
+// Projects, files, git, security policy
+export { ProjectStore, ProjectError, detectGit, type Project } from './workspace/projects.js';
+export {
+  FileService,
+  FileServiceError,
+  hashOf,
+  type FileContent,
+  type TreeEntry,
+  type SearchHit,
+} from './workspace/file-service.js';
+export {
+  GitRepo,
+  GitError,
+  gitAvailable,
+  gitClone,
+  type GitStatus,
+  type GitCommit,
+  type GitBranch,
+  type GitFileChange,
+} from './git/git.js';
+export {
+  FsPolicy,
+  DEFAULT_DENY_PATTERNS,
+  globMatch as pathGlobMatch,
+  type SecurityMode,
+  type FsDecision,
+} from './policy/fs-policy.js';
+
 // Channels, cron, heartbeat, approvals
 export { ChannelManager } from './channels/manager.js';
 export { PairingStore, type PairingRequest } from './channels/pairing-store.js';

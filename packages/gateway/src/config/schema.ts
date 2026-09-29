@@ -178,6 +178,25 @@ export const ConfigSchema = z
       })
       .strict()
       .prefault({}),
+    /**
+     * What the agent may touch on this machine. Enforced in the tool layer, not advisory:
+     * "read-only" removes every write root, "balanced" allows writes inside registered projects
+     * and the workspace, and "custom" lets an operator name the roots and tools themselves.
+     */
+    security: z
+      .object({
+        mode: z.enum(['read-only', 'balanced', 'custom']).default('balanced'),
+        /** Extra directories the agent may read, beyond the workspace and registered projects. */
+        readRoots: z.array(z.string()).default([]),
+        /** Extra directories the agent may write to. Ignored in read-only mode. */
+        writeRoots: z.array(z.string()).default([]),
+        /** Patterns refused everywhere; these are added to the built-in secret list. */
+        denyPatterns: z.array(z.string()).default([]),
+        /** Per-tool switches for "custom" mode; unlisted tools follow the mode's default. */
+        tools: z.record(z.string(), z.boolean()).default({}),
+      })
+      .strict()
+      .prefault({}),
     browser: z
       .object({
         enabled: z.boolean().default(true),

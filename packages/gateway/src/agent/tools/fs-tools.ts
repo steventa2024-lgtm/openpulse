@@ -28,6 +28,8 @@ export const readTool = defineTool({
   summarize: (i) => `read ${i.path}${i.offset ? `:${i.offset}` : ''}`,
   async execute(input, ctx) {
     const file = resolvePath(input.path, ctx.workspace);
+    const gate = ctx.fsPolicy.canRead(file);
+    if (!gate.allowed) return fail(gate.reason!);
     let stat;
     try {
       stat = await fs.stat(file);
@@ -69,6 +71,8 @@ export const writeTool = defineTool({
   summarize: (i) => `write ${i.path} (${Buffer.byteLength(i.content)} bytes)`,
   async execute(input, ctx) {
     const file = resolvePath(input.path, ctx.workspace);
+    const gate = ctx.fsPolicy.canWrite(file);
+    if (!gate.allowed) return fail(gate.reason!);
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, input.content, 'utf8');
     return ok(`Wrote ${Buffer.byteLength(input.content)} bytes to ${file}`);
@@ -83,6 +87,8 @@ export const editTool = defineTool({
   summarize: (i) => `edit ${i.path}`,
   async execute(input, ctx) {
     const file = resolvePath(input.path, ctx.workspace);
+    const gate = ctx.fsPolicy.canWrite(file);
+    if (!gate.allowed) return fail(gate.reason!);
     let text: string;
     try {
       text = await fs.readFile(file, 'utf8');

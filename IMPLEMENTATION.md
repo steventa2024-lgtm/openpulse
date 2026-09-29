@@ -61,12 +61,22 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Phase C, gateway half. `FsPolicy` now bounds every filesystem tool by declared
+  roots and a secret deny list (the deny globs were silently never matching until a test caught the
+  pattern translation — fixed). Security modes select tools: read-only removes write/exec/browser,
+  custom switches named tools off. `ProjectStore` registers developer projects (validated paths, git
+  detection) and those paths are what widen the policy. `GitRepo` wraps the git CLI with argument
+  arrays only — a branch name containing `; echo pwned` is just an invalid ref. `FileService` serves
+  the editor with hash-based conflict detection. New RPCs: projects._, security._, workspace.tree,
+  workspace.file.*, workspace.search, git.status/branches/log/diff/show/checkout/fetch/commit/clone.
+  Verified: 156 gateway tests, including 18 security, 10 git (against real git), 10 file service and
+  12 over-the-wire RPC tests.
+
 - **2026-09-28** — Phase B: `apps/desktop` (Electron + TypeScript). Gateway supervisor attaches to a
   running gateway, or spawns the bundled one with the Electron binary (`ELECTRON_RUN_AS_NODE=1`), so
   an installed OpenPulse needs no Node or pnpm. Port probing distinguishes an OpenPulse gateway, a
   foreign listener and a free port, and falls back to the next port when something else holds the
-  preferred one — which is exactly what happened on the build machine, where a Windows service holds
-  18789. Tray, window-state persistence, notifications, diagnostics, desktop log, single instance,
+  preferred one — which is exactly what happened on the build machine, where a Windows service holds 18789. Tray, window-state persistence, notifications, diagnostics, desktop log, single instance,
   IPC bridge without credentials, generated icon, NSIS + portable packaging.
   Verified: 13 supervisor tests; `electron .` starts and loads the Control UI; `electron-builder`
   produced `OpenPulse-Setup-0.1.0-x64.exe` (83 MB) and a portable build; the **packaged** app

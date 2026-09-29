@@ -25,6 +25,8 @@ import {
   type SkillDefinition,
   type SkillStatus,
 } from './skills/loader.js';
+import { DEFAULT_DENY_PATTERNS, FsPolicy } from './policy/fs-policy.js';
+import { ProjectStore } from './workspace/projects.js';
 import { ensureWorkspace } from './workspace/workspace.js';
 
 export interface RuntimeOptions {
@@ -55,6 +57,7 @@ export class Runtime {
   readonly pairing: PairingStore;
   readonly devices: DeviceStore;
   readonly sessions: SessionStore;
+  readonly projects: ProjectStore;
   readonly processes = new ProcessRegistry();
   readonly browser: BrowserSession;
   readonly runner: AgentRunner;
@@ -64,6 +67,12 @@ export class Runtime {
   readonly heartbeat: HeartbeatRunner;
   readonly startedAt = Date.now();
   private started = false;
+  private fsPolicyValue: FsPolicy = new FsPolicy({
+    mode: 'balanced',
+    readRoots: [],
+    writeRoots: [],
+    denyPatterns: DEFAULT_DENY_PATTERNS,
+  });
   private readonly onConfigChange = () => void this.applyConfig();
 
   private constructor(private readonly options: RuntimeOptions) {
@@ -79,6 +88,7 @@ export class Runtime {
     this.pairing = new PairingStore(this.paths.credentialsDir);
     this.devices = new DeviceStore(this.paths.devicesDir);
     this.sessions = new SessionStore(this.paths.sessionsDir(this.agentId));
+    this.projects = new ProjectStore(path.join(this.paths.stateDir, 'projects.json'));
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -164,6 +174,7 @@ export class Runtime {
       agentId: this.agentId,
       config: () => this.cfg,
       workspace: () => this.workspaceDir,
+      fsPolicy: () => this.fsPolicy,
       sessions: this.sessions,
       skills: () => this.activeSkills(),
       services,
@@ -215,6 +226,8 @@ export class Runtime {
     rt.logs.setLevel(rt.cfg.logging.level);
     await ensureWorkspace(rt.workspaceDir, { skipBootstrap: rt.cfg.agents.defaults.skipBootstrap });
     await rt.approvals.load();
+    await rt.projects.load();
+    await rt.refreshFsPolicy();
     return rt;
   }
 
@@ -225,6 +238,31 @@ export class Runtime {
   get workspaceDir(): string {
     const w = this.cfg.agents.defaults.workspace;
     return w ? path.resolve(expandHome(w)) : this.paths.defaultWorkspace;
+  }
+
+  /**
+   * The filesystem boundary the tools enforce: the agent workspace plus every registered project,
+   * widened only by explicit config. Rebuilt whenever config or the project list changes.
+   */
+  async refreshFsPolicy(): Promise<FsPolicy> {
+    const security = this.cfg.security;
+    const projectRoots = await this.projects.roots();
+    this.fsPolicyValue = new FsPolicy({
+      mode: security.mode,
+      readRoots: [this.workspaceDir, ...projectRoots, ...security.readRoots],
+      writeRoots: [this.workspaceDir, ...projectRoots, ...security.writeRoots],
+      denyPatterns: [
+        ...DEFAULT_DENY_PATTERNS,
+        `${this.paths.stateDir.replaceAll('\\', '/')}/credentials/**`,
+        `${this.paths.stateDir.replaceAll('\\', '/')}/identity/**`,
+        ...security.denyPatterns,
+      ],
+    });
+    return this.fsPolicyValue;
+  }
+
+  get fsPolicy(): FsPolicy {
+    return this.fsPolicyValue;
   }
 
   canonical(key: string | undefined): string {
@@ -299,6 +337,7 @@ export class Runtime {
     }
     this.logs.setLevel(this.cfg.logging.level);
     this.heartbeat.reconfigure();
+    await this.refreshFsPolicy();
     await this.channels.sync();
     this.log.info('config reloaded');
   }

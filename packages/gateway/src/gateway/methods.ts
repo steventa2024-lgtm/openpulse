@@ -7,9 +7,11 @@ import { ConfigSchema, THINKING_LEVELS, UI_HINTS } from '../config/schema.js';
 import { ConfigError, patchForPath } from '../config/store.js';
 import type { Runtime } from '../runtime.js';
 import { appendTranscript, readTranscript, type ContentPart } from '../sessions/transcript.js';
+import type { ProjectError } from '../workspace/projects.js';
 import { BOOTSTRAP_FILES } from '../workspace/workspace.js';
 import { VERSION } from '../version.js';
 import { GatewayError } from './protocol.js';
+import { WORKSPACE_METHODS } from './workspace-methods.js';
 
 export interface MethodContext {
   rt: Runtime;
@@ -20,7 +22,7 @@ export interface MethodContext {
   broadcast: (event: string, payload: unknown) => void;
 }
 
-type Handler = (params: Record<string, unknown>, ctx: MethodContext) => unknown;
+export type Handler = (params: Record<string, unknown>, ctx: MethodContext) => unknown;
 
 function parse<S extends z.ZodType>(schema: S, params: unknown): z.output<S> {
   const r = schema.safeParse(params ?? {});
@@ -68,7 +70,7 @@ function healthSnapshot(rt: Runtime) {
   };
 }
 
-export const METHODS: Record<string, Handler> = {
+const CORE_METHODS: Record<string, Handler> = {
   health: (_p, { rt }) => healthSnapshot(rt),
 
   status: async (_p, ctx) => {
@@ -256,6 +258,91 @@ export const METHODS: Record<string, Handler> = {
     const deleted = await ctx.rt.sessions.delete(k, { deleteTranscript });
     ctx.broadcast('sessions.changed', { key: k, reason: 'delete' });
     return { deleted };
+  },
+
+  // ---- projects --------------------------------------------------------------------------------
+  'projects.list': async (_p, { rt }) => ({
+    projects: await rt.projects.list(),
+    active: (await rt.projects.active()) ?? null,
+    roots: rt.fsPolicy.describe(),
+  }),
+  'projects.add': async (p, ctx) => {
+    const { path: dir, name } = parse(
+      z.object({ path: z.string().min(1), name: z.string().optional() }),
+      p,
+    );
+    try {
+      const project = await ctx.rt.projects.add({ path: dir, ...(name !== undefined && { name }) });
+      await ctx.rt.refreshFsPolicy();
+      ctx.rt.log.info(`project added: ${project.name}`, { path: project.path });
+      ctx.broadcast('projects.changed', { reason: 'add', id: project.id });
+      return { project };
+    } catch (error) {
+      throw new GatewayError(
+        (error as ProjectError).code === 'NOT_FOUND' ? 'NOT_FOUND' : 'INVALID_REQUEST',
+        (error as Error).message,
+      );
+    }
+  },
+  'projects.remove': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    const removed = await ctx.rt.projects.remove(id);
+    await ctx.rt.refreshFsPolicy();
+    ctx.broadcast('projects.changed', { reason: 'remove', id });
+    return { removed };
+  },
+  'projects.select': async (p, ctx) => {
+    const { id } = parse(z.object({ id: z.string() }), p);
+    try {
+      const project = await ctx.rt.projects.setActive(id);
+      ctx.broadcast('projects.changed', { reason: 'select', id });
+      return { project };
+    } catch (error) {
+      throw new GatewayError('NOT_FOUND', (error as Error).message);
+    }
+  },
+  'projects.patch': async (p, ctx) => {
+    const { id, patch } = parse(
+      z.object({
+        id: z.string(),
+        patch: z.object({
+          name: z.string().min(1).max(120).optional(),
+          extraReadRoots: z.array(z.string()).optional(),
+        }),
+      }),
+      p,
+    );
+    try {
+      const project = await ctx.rt.projects.patch(id, patch);
+      await ctx.rt.refreshFsPolicy();
+      ctx.broadcast('projects.changed', { reason: 'patch', id });
+      return { project };
+    } catch (error) {
+      throw new GatewayError('NOT_FOUND', (error as Error).message);
+    }
+  },
+
+  // ---- security --------------------------------------------------------------------------------
+  'security.get': (_p, { rt }) => ({
+    mode: rt.cfg.security.mode,
+    policy: rt.fsPolicy.describe(),
+    config: rt.cfg.security,
+    exec: rt.approvals.get().defaults,
+  }),
+  'security.set': async (p, { rt }) => {
+    const patch = parse(
+      z.object({
+        mode: z.enum(['read-only', 'balanced', 'custom']).optional(),
+        readRoots: z.array(z.string()).optional(),
+        writeRoots: z.array(z.string()).optional(),
+        denyPatterns: z.array(z.string()).optional(),
+        tools: z.record(z.string(), z.boolean()).optional(),
+      }),
+      p,
+    );
+    await configWrite(() => rt.config.patch({ security: patch }));
+    await rt.refreshFsPolicy();
+    return { mode: rt.cfg.security.mode, policy: rt.fsPolicy.describe() };
   },
 
   // ---- channels & pairing ----------------------------------------------------------------------
@@ -559,6 +646,9 @@ export const METHODS: Record<string, Handler> = {
     return { ok: true };
   },
 };
+
+/** Every method the gateway answers: the core set plus the workspace, git and editor calls. */
+export const METHODS: Record<string, Handler> = { ...CORE_METHODS, ...WORKSPACE_METHODS };
 
 async function injectNote(ctx: MethodContext, key: string, text: string): Promise<void> {
   const entry = await ctx.rt.sessions.ensure(key);

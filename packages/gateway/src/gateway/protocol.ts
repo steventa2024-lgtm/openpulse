@@ -109,6 +109,8 @@ export const GATEWAY_EVENTS = [
   'device.pair.requested',
   'device.pair.resolved',
   'sessions.changed',
+  'projects.changed',
+  'workspace.changed',
   'config.changed',
   'shutdown',
 ] as const;

@@ -59,7 +59,19 @@ export function buildTools(opts: ToolBuildOptions): AnyTool[] {
   ];
   const allow = config.tools.allow ? expand(config.tools.allow) : undefined;
   const deny = expand([...config.tools.deny, ...(opts.exclude ?? [])]);
-  return all.filter((t) => !matches(deny, t.name) && (!allow || matches(allow, t.name)));
+
+  // Security modes: read-only removes everything that can change this machine; custom mode lets an
+  // operator switch individual tools off. Filesystem boundaries are enforced inside the tools.
+  const security = config.security;
+  const writeTools = new Set(['write', 'edit', 'exec', 'process', 'browser']);
+  const securityDenied = (name: string): boolean => {
+    if (security.mode === 'read-only' && writeTools.has(name)) return true;
+    return security.tools[name] === false;
+  };
+
+  return all.filter(
+    (t) => !matches(deny, t.name) && !securityDenied(t.name) && (!allow || matches(allow, t.name)),
+  );
 }
 
 function expand(names: string[]): string[] {
