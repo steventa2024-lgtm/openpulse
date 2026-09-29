@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
+import type { TestRun } from '../testing/runner.js';
 import type { Runtime } from '../runtime.js';
 import { VERSION } from '../version.js';
 import { deviceIdFromPublicKey, verifyDeviceSignature } from './devices.js';
@@ -165,6 +166,13 @@ export class GatewayServer {
   private wireEvents(): void {
     this.rt.emitChange = (changeId, projectId) =>
       this.broadcast('changes.changed', { id: changeId, projectId, reason: 'proposed' });
+    this.rt.tests.on('started', (run) =>
+      this.broadcast('tests.started', { run: summariseRun(run) }),
+    );
+    this.rt.tests.on('output', (event) => this.broadcast('tests.output', event));
+    this.rt.tests.on('finished', (run) =>
+      this.broadcast('tests.finished', { run: summariseRun(run) }),
+    );
     this.rt.agent.on('chat', (e) => this.broadcast('chat', e));
     this.rt.agent.on('agent', (e) => this.broadcast('agent', e));
     this.rt.heartbeat.on('heartbeat', (e) => this.broadcast('heartbeat', e));
@@ -577,4 +585,10 @@ function frameText(raw: RawData): string {
   if (Buffer.isBuffer(raw)) return raw.toString('utf8');
   if (Array.isArray(raw)) return Buffer.concat(raw).toString('utf8');
   return Buffer.from(raw).toString('utf8');
+}
+
+/** A test run without its (possibly large) output, for broadcast. */
+function summariseRun(run: TestRun) {
+  const { output: _output, ...rest } = run;
+  return { ...rest, outputBytes: _output.length };
 }

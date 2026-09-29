@@ -4,6 +4,8 @@ import { ChangeError } from '../changes/proposals.js';
 import { CheckpointError } from '../checkpoints/service.js';
 import { McpError, renderToolResult } from '../mcp/client.js';
 import { detectLocalProviders, inspectOllamaModel } from '../models/detect.js';
+import { detectTestSuites } from '../testing/detect.js';
+import { sanitizeValue } from '../debug/sanitize.js';
 import { GitError, GitRepo, gitAvailable, gitClone } from '../git/git.js';
 import type { Runtime } from '../runtime.js';
 import { FileService, FileServiceError } from '../workspace/file-service.js';
@@ -612,6 +614,186 @@ export const WORKSPACE_METHODS: Record<string, Handler> = {
         limit,
       }),
     };
+  },
+
+  // ---- tests ---------------------------------------------------------------------------------
+  'tests.detect': async (p, { rt }) => {
+    const { projectId } = parse(ProjectRef, p);
+    const project = await projectOf(rt, projectId);
+    return { suites: await detectTestSuites(project.path) };
+  },
+
+  /**
+   * Run one of the suites detection found. Suites are chosen by id rather than accepting a
+   * command, so this cannot be used to run arbitrary programs.
+   */
+  'tests.run': async (p, { rt }) => {
+    const { projectId, suiteId, wait } = parse(
+      ProjectRef.extend({ suiteId: z.string(), wait: z.boolean().default(false) }),
+      p,
+    );
+    const project = await projectOf(rt, projectId);
+    if (rt.cfg.security.mode === 'read-only') {
+      throw new GatewayError(
+        'FORBIDDEN',
+        'Running tests executes project code, which read-only mode does not allow.',
+      );
+    }
+    const suite = (await detectTestSuites(project.path)).find((s) => s.id === suiteId);
+    if (!suite)
+      throw new GatewayError('NOT_FOUND', `No test suite "${suiteId}" in ${project.name}.`);
+    if (!suite.available)
+      throw new GatewayError(
+        'INVALID_REQUEST',
+        suite.reason ?? `${suite.command} is not installed.`,
+      );
+
+    const running = rt.tests.run({ projectId: project.id, projectDir: project.path, suite });
+    if (wait) return { run: await running };
+    // Streamed through tests.output / tests.finished events.
+    const started = rt.tests.history(project.id, 1)[0];
+    return { run: started };
+  },
+
+  'tests.cancel': (p, { rt }) => {
+    const { runId } = parse(z.object({ runId: z.string() }), p);
+    return { cancelled: rt.tests.cancel(runId) };
+  },
+
+  'tests.history': async (p, { rt }) => {
+    const { projectId, limit } = parse(
+      ProjectRef.extend({ limit: z.number().int().min(1).max(50).default(20) }),
+      p,
+    );
+    const project = await projectOf(rt, projectId);
+    return {
+      runs: rt.tests
+        .history(project.id, limit)
+        .map(({ output, ...rest }) => ({ ...rest, outputBytes: output.length })),
+    };
+  },
+
+  'tests.get': (p, { rt }) => {
+    const { runId } = parse(z.object({ runId: z.string() }), p);
+    const run = rt.tests.get(runId);
+    if (!run) throw new GatewayError('NOT_FOUND', `No test run ${runId}`);
+    return { run };
+  },
+
+  /**
+   * Hand a real failure to the agent and ask for a fix as a reviewable change. The result lands in
+   * Changes for approval; nothing is written until the developer approves it.
+   */
+  'tests.fix': async (p, { rt }) => {
+    const { runId } = parse(z.object({ runId: z.string() }), p);
+    const run = rt.tests.get(runId);
+    if (!run) throw new GatewayError('NOT_FOUND', `No test run ${runId}`);
+    if (run.status !== 'failed')
+      throw new GatewayError('INVALID_REQUEST', 'Only a failed run can be sent for a fix.');
+    const project = await projectOf(rt, run.projectId);
+
+    const failures = run.failures.length
+      ? run.failures.map((f) => `- ${f.name}\n${f.detail}`).join('\n\n')
+      : '(no individual failures could be parsed; see the output below)';
+    const message = [
+      `The test command \`${run.command}\` failed in the project "${project.name}" (${project.path}), exit code ${run.exitCode ?? 'unknown'}.`,
+      '',
+      'Failures parsed from the output:',
+      failures,
+      '',
+      'Last part of the output:',
+      '```',
+      run.output.slice(-6000),
+      '```',
+      '',
+      'Read the relevant files, find the cause, and propose a fix with the propose_change tool so the developer can review it. Do not write files directly. Explain the cause in one or two sentences.',
+    ].join('\n');
+
+    const sessionKey = `agent:${rt.agentId}:tests:${project.id}`;
+    await rt.sessions.ensure(sessionKey);
+    const result = await rt.agent.dispatch({
+      sessionKey,
+      message,
+      source: { kind: 'user', channel: 'webchat', senderName: 'Test runner' },
+    });
+    return { sessionKey, runId: result.runId, status: result.status };
+  },
+
+  // ---- debugger ------------------------------------------------------------------------------
+  'debug.runs': (p, { rt }) => {
+    const { sessionKey, status, limit } = parse(
+      z.object({
+        sessionKey: z.string().optional(),
+        status: z.enum(['running', 'ok', 'error', 'aborted']).optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+      }),
+      p,
+    );
+    return {
+      runs: rt.traces.list({
+        ...(sessionKey !== undefined && { sessionKey: rt.canonical(sessionKey) }),
+        ...(status !== undefined && { status }),
+        limit,
+      }),
+    };
+  },
+
+  'debug.trace': (p, { rt }) => {
+    const { runId } = parse(z.object({ runId: z.string() }), p);
+    const trace = rt.traces.get(runId);
+    if (!trace)
+      throw new GatewayError(
+        'NOT_FOUND',
+        `No trace for run ${runId}. Traces are kept for the most recent 200 runs.`,
+      );
+    return { trace };
+  },
+
+  /** Sanitized, self-contained export of one run or a whole session. */
+  'debug.export': (p, { rt }) => {
+    const { runId, sessionKey } = parse(
+      z.object({ runId: z.string().optional(), sessionKey: z.string().optional() }),
+      p,
+    );
+    if (!runId && !sessionKey)
+      throw new GatewayError('INVALID_REQUEST', 'Pass a runId or a sessionKey.');
+    return rt.traces.export({
+      ...(runId !== undefined && { runId }),
+      ...(sessionKey !== undefined && { sessionKey: rt.canonical(sessionKey) }),
+    });
+  },
+
+  /** Sanitized diagnostics bundle: versions, config shape, health, recent errors and traces. */
+  'debug.diagnostics': async (_p, { rt }) => {
+    const secrets = rt.knownSecrets();
+    const logs = await rt.logs.tail({ limit: 200 });
+    const errors = logs.lines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as { level?: string };
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((record) => record?.level === 'error' || record?.level === 'warn');
+    return sanitizeValue(
+      {
+        generatedAt: new Date().toISOString(),
+        runtime: { node: process.version, platform: process.platform, arch: process.arch },
+        gateway: {
+          stateDir: rt.paths.stateDir,
+          workspace: rt.workspaceDir,
+          startedAt: rt.startedAt,
+        },
+        config: { valid: rt.config.get().valid, issues: rt.config.get().issues, config: rt.cfg },
+        security: rt.fsPolicy.describe(),
+        mcp: rt.mcp.status(),
+        telemetry: rt.telemetry.summary({ since: Date.now() - 24 * 3_600_000 }),
+        recentProblems: errors.slice(-50),
+        recentRuns: rt.traces.list({ limit: 20 }),
+      },
+      secrets,
+    );
   },
 
   // ---- git -------------------------------------------------------------------------------------

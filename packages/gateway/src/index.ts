@@ -163,6 +163,12 @@ export {
   type ModelSummary,
 } from './telemetry/store.js';
 
+// Test runner and debugger
+export { detectTestSuites, onPath as commandOnPath, type TestSuite } from './testing/detect.js';
+export { TestRunner, parseFailures, type TestRun, type TestFailure } from './testing/runner.js';
+export { TraceRecorder, type RunTrace, type TraceEvent } from './debug/trace.js';
+export { sanitizeText, sanitizeValue } from './debug/sanitize.js';
+
 // MCP
 export {
   McpClient,

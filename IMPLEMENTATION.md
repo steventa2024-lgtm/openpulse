@@ -61,6 +61,19 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 ## Log
 
+- **2026-09-28** — Test runner and debugger (gateway side). `detectTestSuites` finds the test
+  commands a project declares (npm/pnpm/yarn/bun scripts, pytest, cargo, go, maven, gradle, dotnet)
+  and checks each tool is installed, reporting unavailable suites with the reason. `TestRunner`
+  spawns the real command, streams output, takes pass/fail from the exit code, supports cancel, and
+  parses failure names where the format allows — never invents them. `tests.fix` hands a real
+  failure to the agent and asks for a fix via `propose_change`, so it lands in review. Suites run by
+  id only, so the RPC cannot run arbitrary commands; read-only mode refuses to run tests at all.
+  `TraceRecorder` builds a per-run timeline from the events the runner already emits (start, model,
+  reasoning, tool calls with timing, output, errors, approvals, end) and redacts secrets on the way
+  in — pattern-based plus the gateway's own literal keys and tokens. New RPCs: tests.detect/run/
+  cancel/history/get/fix, debug.runs/trace/export/diagnostics.
+  Verified: 226 gateway tests, including a trace and telemetry recorded from an actual scripted run.
+
 - **2026-09-28** — Model setup and monitoring (gateway side). `detectLocalProviders` probes Ollama
   and LM Studio and reports what is installed, what is running and what to do when neither is —
   no invented model lists. `inspectOllamaModel` reads the real context window and tool-calling

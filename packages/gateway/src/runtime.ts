@@ -17,6 +17,8 @@ import { HeartbeatRunner } from './heartbeat/runner.js';
 import { LogSink, type LogRecord, type Logger } from './infra/logger.js';
 import { McpManager } from './mcp/manager.js';
 import { TelemetryStore } from './telemetry/store.js';
+import { TestRunner } from './testing/runner.js';
+import { TraceRecorder } from './debug/trace.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
@@ -69,6 +71,8 @@ export class Runtime {
   readonly checkpoints: CheckpointService;
   readonly mcp: McpManager;
   readonly telemetry: TelemetryStore;
+  readonly tests = new TestRunner();
+  readonly traces: TraceRecorder;
   /** Set by the server so agent-proposed changes reach connected clients immediately. */
   emitChange: ((changeId: string, projectId: string) => void) | undefined;
   readonly processes = new ProcessRegistry();
@@ -106,6 +110,10 @@ export class Runtime {
     this.checkpoints = new CheckpointService(path.join(this.paths.stateDir, 'checkpoints'));
     this.mcp = new McpManager({ config: () => this.cfg, log: this.logs.logger('mcp') });
     this.telemetry = new TelemetryStore(path.join(this.paths.stateDir, 'telemetry'));
+    this.traces = new TraceRecorder({
+      dir: path.join(this.paths.stateDir, 'traces'),
+      secrets: () => this.knownSecrets(),
+    });
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -239,6 +247,14 @@ export class Runtime {
       agentId: this.agentId,
       log: this.logs.logger('agent'),
     });
+    // Every agent event feeds the debugger's timeline, and approval decisions are noted in it.
+    this.agent.on('agent', (event) => this.traces.record(event));
+    this.approvals.on('resolved', (resolved) =>
+      this.traces.recordApproval(
+        { sessionKey: resolved.request.sessionKey },
+        { command: resolved.request.command, decision: resolved.decision, by: resolved.resolvedBy },
+      ),
+    );
     this.channels = new ChannelManager({
       config: () => this.cfg,
       agent: this.agent,
@@ -363,6 +379,30 @@ export class Runtime {
     };
   }
 
+  /** Literal secret values this gateway holds, so traces and exports can redact them exactly. */
+  knownSecrets(): string[] {
+    const cfg = this.cfg;
+    const values = [
+      cfg.gateway.auth.token,
+      cfg.gateway.auth.password,
+      cfg.models.providers.anthropic?.apiKey,
+      cfg.models.providers.openai?.apiKey,
+      cfg.channels.telegram?.botToken,
+      cfg.tools.web.search.apiKey,
+      ...Object.values(cfg.skills.entries).flatMap((entry) => [
+        entry.apiKey,
+        ...Object.values(entry.env ?? {}),
+      ]),
+      ...Object.values(cfg.mcp.servers).flatMap((server) => [
+        ...Object.values(server.env ?? {}),
+        ...Object.values(server.headers ?? {}),
+      ]),
+    ];
+    return values.filter(
+      (value): value is string => typeof value === 'string' && value.length >= 6,
+    );
+  }
+
   canonical(key: string | undefined): string {
     return canonicalSessionKey(key ?? 'main', this.agentId, this.cfg.session.mainKey);
   }
@@ -423,6 +463,7 @@ export class Runtime {
     this.agent.abortAll();
     this.approvals.cancelAll();
     this.processes.killAll();
+    this.tests.cancelAll();
     await this.channels.stopAll();
     await this.mcp.stop();
     await this.browser.stop();
