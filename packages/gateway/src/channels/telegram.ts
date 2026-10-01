@@ -56,6 +56,51 @@ export interface TelegramOptions {
 }
 
 /** Telegram Bot API channel: long polling by default, webhook when channels.telegram.webhookUrl is set. */
+/**
+ * Scan a reply for markdown image references and bare paths to files under
+ * ~/.openpulse/media/, returning the remaining text plus the extracted attachments.
+ */
+function extractImages(text: string): {
+  text: string;
+  images: { path: string; caption?: string }[];
+} {
+  const images: { path: string; caption?: string }[] = [];
+  const kept: string[] = [];
+  const isMedia = (p: string) =>
+    /\/\.openpulse\/media\/[A-Za-z0-9_./-]+\.(png|jpe?g|webp|gif)$/i.test(p);
+
+  for (const line of text.split('\n')) {
+    const md = line.match(/!\[([^\]]*)\]\(([^)]+\.(?:png|jpe?g|webp|gif))\)/i);
+    if (md && isMedia(md[2]!)) {
+      images.push({ path: md[2]!, caption: md[1] || undefined });
+      const rest = line.replace(md[0], '').trim();
+      if (rest) kept.push(rest);
+      continue;
+    }
+    const bare = line.match(
+      /(?:Saved screenshot|Screenshot):?\s*(\/[^\s]+\.(?:png|jpe?g|webp|gif))/i,
+    );
+    if (bare && isMedia(bare[1]!)) {
+      images.push({ path: bare[1]! });
+      continue;
+    }
+    const barePath = line.trim().match(/^(\/[^\s]+\.(?:png|jpe?g|webp|gif))$/i);
+    if (barePath && isMedia(barePath[1]!)) {
+      images.push({ path: barePath[1]! });
+      continue;
+    }
+    kept.push(line);
+  }
+
+  return {
+    text: kept
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
+    images,
+  };
+}
+
 export class TelegramChannel implements ChannelPlugin {
   readonly id = 'telegram';
   readonly label = 'Telegram';
@@ -170,6 +215,45 @@ export class TelegramChannel implements ChannelPlugin {
     this.state.lastOutboundAt = Date.now();
   }
 
+  async sendWithPhotos(to: string, text: string): Promise<void> {
+    const { text: cleanText, images } = extractImages(text);
+    if (cleanText.trim()) {
+      await this.send(to, cleanText).catch(() => undefined);
+    }
+    for (const img of images) {
+      await this.sendPhotoFile(to, img.path, img.caption).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Upload a local file as a Telegram photo. Uses multipart/form-data because
+   * Telegram's Bot API rejects data URIs and file:// URLs.
+   */
+  private async sendPhotoFile(to: string, filePath: string, caption?: string): Promise<void> {
+    const { readFile } = await import('node:fs/promises');
+    const buf = await readFile(filePath);
+
+    const chatId = to.split(':topic:')[0]!;
+    const thread = to.includes(':topic:') ? Number(to.split(':topic:')[1]) : undefined;
+
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    if (thread !== undefined && !Number.isNaN(thread)) {
+      form.append('message_thread_id', String(thread));
+    }
+    const filename = filePath.split('/').pop() ?? 'screenshot.png';
+    form.append('photo', new Blob([buf], { type: 'image/png' }), filename);
+    if (caption) form.append('caption', caption.slice(0, 1024));
+
+    // Reuse the class's own apiBase/fetch/token, matching what call() already does.
+    const res = await this.fetch(`${this.apiBase}/bot${this.opts.token}/sendPhoto`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) throw new Error(`sendPhoto ${res.status}: ${await res.text()}`);
+    this.state.lastOutboundAt = Date.now();
+  }
+
   async typing(to: string): Promise<void> {
     await this.call('sendChatAction', { chat_id: to.split(':topic:')[0], action: 'typing' });
   }
@@ -256,6 +340,9 @@ export class TelegramChannel implements ChannelPlugin {
         ...(isGroup &&
           m.message_thread_id !== undefined && { threadId: String(m.message_thread_id) }),
       };
+      // /session commands are handled locally, never passed to the agent.
+      if (await this.handleSessionCommand(ctx, inbound)) return;
+
       await ctx.onInbound(inbound);
     } catch (error) {
       ctx.log.error(`telegram update ${update.update_id} failed: ${(error as Error).message}`);
@@ -285,6 +372,68 @@ export class TelegramChannel implements ChannelPlugin {
       callback_query_id: q.id,
       text: ok ? decision : 'Already decided.',
     });
+  }
+
+  /**
+   * Intercepts /session commands before they reach the agent.
+   * Returns true if the message was a session command and has been handled.
+   */
+  private async handleSessionCommand(ctx: ChannelContext, m: InboundMessage): Promise<boolean> {
+    const text = m.text.trim();
+    if (!text.startsWith('/session')) return false;
+
+    const reply = async (body: string) => {
+      const to = m.threadId ? `${m.chatId}:topic:${m.threadId}` : m.chatId;
+      await this.send(to, body).catch(() => undefined);
+    };
+
+    const parts = text.split(/\s+/);
+    const sub = parts[1]?.trim();
+
+    const named = ctx.config().session.named ?? {};
+    const chatKey = m.chatType === 'dm' ? m.senderId : m.chatId;
+    const current = await ctx.routes.get(this.id, chatKey);
+
+    // /session (no arg) — show list + current
+    if (!sub) {
+      const list = Object.entries(named);
+      const lines = ['📚 Sessions'];
+      lines.push(`· main — default`);
+      for (const [slug, cfg] of list) {
+        const label = cfg.label ?? slug;
+        const key = `agent:main:s:${slug}`;
+        const marker = current === key ? ' ← current' : '';
+        lines.push(`· ${slug} — ${label}${marker}`);
+      }
+      if (current) lines.push(`\nCurrent: ${current}`);
+      else lines.push(`\nCurrent: main (default)`);
+      lines.push(`\nUse: /session <slug> to switch, /session main to reset.`);
+      await reply(lines.join('\n'));
+      return true;
+    }
+
+    // /session main — clear route
+    if (sub === 'main' || sub === 'default') {
+      await ctx.routes.set(this.id, chatKey, undefined);
+      await reply('↩️ Switched back to the main session.');
+      return true;
+    }
+
+    // /session <slug> — validate against config
+    const slug = sub.toLowerCase();
+    if (!(slug in named)) {
+      const known = Object.keys(named).join(', ') || '(none configured)';
+      await reply(`❌ Unknown session "${slug}".\nKnown: main, ${known}`);
+      return true;
+    }
+
+    const sessionKey = `agent:main:s:${slug}`;
+    await ctx.routes.set(this.id, chatKey, sessionKey);
+    const label = named[slug]?.label ?? slug;
+    await reply(
+      `✅ Switched to *${label}* (${slug}).\nMessages in this chat now go to that session.`,
+    );
+    return true;
   }
 
   private async poll(signal: AbortSignal): Promise<void> {

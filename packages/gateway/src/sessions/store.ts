@@ -14,7 +14,7 @@ export interface SessionEntry {
   lastInteractionAt?: number;
   displayName?: string;
   label?: string;
-  chatType: 'direct' | 'group' | 'main' | 'cron' | 'other';
+  chatType: 'direct' | 'group' | 'main' | 'cron' | 'named' | 'other';
   /** Last delivery route, used by heartbeat target "last" and cron announce fallbacks. */
   lastChannel?: string;
   lastTo?: string;

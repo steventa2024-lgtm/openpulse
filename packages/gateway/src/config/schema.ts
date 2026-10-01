@@ -138,6 +138,16 @@ export const ConfigSchema = z
           })
           .strict()
           .prefault({}),
+        named: z
+          .record(
+            z.string().regex(/^[a-z0-9-]+$/),
+            z.object({
+              label: z.string().optional(),
+              model: z.string().optional(),
+              thinking: z.enum(['off', 'low', 'medium', 'high']).optional(),
+            }),
+          )
+          .default({}),
       })
       .strict()
       .prefault({}),

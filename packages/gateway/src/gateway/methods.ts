@@ -489,6 +489,25 @@ const CORE_METHODS: Record<string, Handler> = {
     return { ok };
   },
 
+  // ---- session routes --------------------------------------------------------------------------
+  'session.routes.list': async (_p, { rt }) => ({ routes: await rt.routes.list() }),
+  'session.routes.set': async (p, { rt }) => {
+    const { channel, chatId, sessionKey } = parse(
+      z.object({
+        channel: z.string().min(1),
+        chatId: z.string().min(1),
+        sessionKey: z.string().nullable(),
+      }),
+      p,
+    );
+    await rt.routes.set(channel, chatId, sessionKey ?? undefined);
+    return { ok: true };
+  },
+  'session.routes.clear': async (_p, { rt }) => {
+    await rt.routes.clear();
+    return { ok: true };
+  },
+
   // ---- config ----------------------------------------------------------------------------------
   'config.get': (_p, { rt }) => {
     const s = rt.config.get();

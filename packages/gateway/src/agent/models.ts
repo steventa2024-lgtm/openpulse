@@ -204,4 +204,5 @@ export const KNOWN_MODELS: {
   },
   { ref: 'openai/gpt-5', name: 'GPT-5', provider: 'openai', reasoning: true },
   { ref: 'ollama/qwen3:8b', name: 'Qwen3 8B (Ollama)', provider: 'ollama' },
+  { ref: 'ollama/qwen3:4b', name: 'Qwen3 4B (Ollama)', provider: 'ollama' },
 ];

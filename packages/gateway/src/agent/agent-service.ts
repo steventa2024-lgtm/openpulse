@@ -53,6 +53,8 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
     { runId: string; status: 'in_flight' | 'ok' | 'error'; at: number }
   >();
   private active = 0;
+  /** Turns that are executing, so shutdown can wait for them to finish writing. */
+  private readonly inFlight = new Set<Promise<RunResult>>();
   private readonly waiters: (() => void)[] = [];
 
   constructor(
@@ -163,6 +165,24 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
     for (const key of this.lanes.keys()) this.abort(key);
   }
 
+  /**
+   * Resolves once no turn is executing (an aborted turn still saves its transcript and session on
+   * the way out). Gives up after `timeoutMs` so a stuck tool cannot hang shutdown.
+   */
+  async idle(timeoutMs = 10_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.inFlight.size > 0 && Date.now() < deadline) {
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        Promise.allSettled([...this.inFlight]),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, Math.max(0, deadline - Date.now()));
+        }),
+      ]);
+      clearTimeout(timer);
+    }
+  }
+
   private enqueue(params: DispatchParams, runId: string): Promise<RunResult> {
     const key = params.sessionKey;
     const lane = this.lanes.get(key) ?? { queue: [] };
@@ -184,9 +204,12 @@ export class AgentService extends EventEmitter<{ chat: [ChatEvent]; agent: [Agen
     const controller = new AbortController();
     lane.running = { runId: next.runId, controller };
     await this.acquire();
+    const run = this.execute(next.params, next.runId, controller.signal);
+    this.inFlight.add(run);
     try {
-      next.resolve(await this.execute(next.params, next.runId, controller.signal));
+      next.resolve(await run);
     } finally {
+      this.inFlight.delete(run);
       this.release();
       lane.running = undefined;
       void this.drain(key).catch((error: unknown) =>

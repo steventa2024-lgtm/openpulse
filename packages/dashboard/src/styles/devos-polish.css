@@ -1,0 +1,669 @@
+/* ============================================================================
+   OpenPulse — polish layer
+   Loaded after devos-overrides.css. Refines spacing, typography, hierarchy,
+   and motion. No component changes, no logic impact.
+   ========================================================================= */
+
+/* -------------------------------------------------------- spacing tokens */
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 140ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+}
+
+/* -------------------------------------------------------- animations */
+@keyframes opFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes opFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes opPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+@keyframes opDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@keyframes opShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Apply entrance animations to panels and cards */
+.card,
+.chat-main,
+.chat-sessions {
+  animation: opFadeUp var(--dur-slow) var(--ease) both;
+}
+
+/* Stagger children of the main content */
+.main > * {
+  animation: opFadeUp var(--dur-slow) var(--ease) both;
+}
+.main > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.main > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.main > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+/* New chat messages slide in */
+.msg {
+  animation: opFadeUp var(--dur) var(--ease) both;
+}
+
+/* -------------------------------------------------------- typography */
+body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.page-head h1 {
+  font-size: 1.2rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+}
+
+.page-head p {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  letter-spacing: 0.005em;
+}
+
+.page-head {
+  margin-bottom: var(--sp-5);
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* Better rhythm in card headers */
+.card > h3 {
+  margin-bottom: var(--sp-4);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* Stat labels + values */
+.stat {
+  gap: 2px;
+}
+.stat .label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+}
+.stat .value {
+  font-size: 1.15rem;
+  font-weight: 640;
+  letter-spacing: -0.022em;
+  line-height: 1.15;
+  color: var(--text);
+}
+.stat .hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.005em;
+}
+
+/* When a stat value is a version string, keep it modest */
+.stat .value.mono,
+.stat .value[data-compact] {
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+/* -------------------------------------------------------- main region */
+.main {
+  padding: var(--sp-6) var(--sp-8) var(--sp-10);
+  scroll-behavior: smooth;
+}
+
+/* -------------------------------------------------------- topbar */
+.topbar {
+  padding: 0 var(--sp-5);
+  gap: var(--sp-4);
+  height: 3rem;
+}
+
+.brand {
+  gap: var(--sp-2);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+}
+
+.brand .mark {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 5px;
+}
+
+.brand .sub {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.topbar .pill {
+  font-size: 10.5px;
+  padding: 0.2rem 0.6rem;
+}
+
+/* Version badge next to health pill */
+.topbar .mono.faint {
+  font-size: 10.5px !important;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+}
+
+/* -------------------------------------------------------- sidebar */
+.sidebar {
+  padding: var(--sp-4) var(--sp-2) var(--sp-8);
+}
+
+.nav-group {
+  margin-bottom: var(--sp-4);
+}
+.nav-group:last-child {
+  margin-bottom: 0;
+}
+
+.nav-group h4 {
+  padding: 0 var(--sp-3);
+  margin: 0 0 var(--sp-2);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-faint);
+  opacity: 0.85;
+}
+
+.nav-item {
+  padding: 0.42rem 0.7rem;
+  margin: 1px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  gap: var(--sp-3);
+  letter-spacing: 0.005em;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.nav-item > span[aria-hidden] {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0.65;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.nav-item:hover > span[aria-hidden] {
+  opacity: 1;
+}
+.nav-item[aria-current='page'] > span[aria-hidden] {
+  opacity: 1;
+}
+
+.nav-item:active {
+  transform: scale(0.985);
+}
+
+/* -------------------------------------------------------- cards */
+.card {
+  padding: var(--sp-5);
+  border-radius: 14px;
+}
+
+.card + .card {
+  margin-top: var(--sp-4);
+}
+
+.grid {
+  gap: var(--sp-4);
+}
+
+/* -------------------------------------------------------- buttons */
+button.btn {
+  height: 2.1rem;
+  padding: 0 0.9rem;
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  font-weight: 500;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+button.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button.btn.primary {
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+button.icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+button.icon:active {
+  transform: scale(0.94);
+}
+
+/* -------------------------------------------------------- inputs */
+input[type='text'],
+input[type='password'],
+input[type='number'],
+select,
+textarea {
+  height: 2.2rem;
+  padding: 0 0.75rem;
+  font-size: 13px;
+  letter-spacing: 0.005em;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+textarea {
+  height: auto;
+  min-height: 5rem;
+  padding: 0.6rem 0.75rem;
+  line-height: 1.55;
+}
+
+label.field {
+  margin-bottom: var(--sp-4);
+}
+
+label.field > span {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--sp-2);
+}
+
+/* -------------------------------------------------------- tables */
+table.rows {
+  font-size: 12.5px;
+}
+
+table.rows th {
+  padding: 0 var(--sp-3) var(--sp-3);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+
+table.rows td {
+  padding: 0.65rem var(--sp-3);
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+table.rows td:first-child {
+  color: var(--text);
+  font-weight: 500;
+}
+
+table.rows tr.clickable {
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+table.rows tr.clickable:hover td {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+/* -------------------------------------------------------- pills + dots */
+.pill {
+  padding: 0.18rem 0.6rem;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.pill .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.pill.ok .dot,
+.pill.warn .dot,
+.pill.err .dot {
+  animation: opPulse 2s var(--ease) infinite;
+}
+
+/* -------------------------------------------------------- chat */
+.chat {
+  gap: var(--sp-4);
+  height: calc(100vh - 3rem - 3.5rem);
+}
+
+.chat-sessions {
+  padding: var(--sp-2);
+  border-radius: 14px;
+}
+
+.chat-session {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.chat-session small {
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  opacity: 0.75;
+}
+
+.chat-main {
+  border-radius: 14px;
+}
+
+.chat-head {
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  color: var(--text-dim);
+  gap: var(--sp-3);
+}
+
+.chat-log {
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  gap: var(--sp-4);
+  scroll-behavior: smooth;
+}
+
+.msg {
+  gap: 0.4rem;
+  max-width: 48rem;
+}
+
+.msg .who {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 0.1rem;
+}
+
+.msg .bubble {
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.003em;
+}
+
+.msg.user .bubble {
+  border-radius: 12px 12px 4px 12px;
+}
+
+.msg:not(.user) .bubble {
+  border-radius: 12px 12px 12px 4px;
+}
+
+/* Compress the reasoning trace — it currently dominates */
+.msg .bubble .thinking,
+.thinking {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  font-style: normal;
+  letter-spacing: 0.005em;
+  opacity: 0.85;
+}
+
+/* Animated dots after "thinking…" */
+.thinking::after {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: opDot 1.4s infinite;
+  vertical-align: middle;
+}
+
+/* -------------------------------------------------------- tool cards */
+.tool-card {
+  border-radius: 10px;
+  animation: opFadeUp var(--dur) var(--ease) both;
+}
+
+.tool-card summary {
+  padding: 0.5rem 0.75rem;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  gap: 0.5rem;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.tool-card pre {
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 0.7rem 0.9rem;
+}
+
+/* -------------------------------------------------------- composer */
+.composer {
+  padding: var(--sp-3) var(--sp-4);
+  gap: var(--sp-2);
+}
+
+.composer textarea {
+  min-height: 2.4rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 13px;
+  line-height: 1.55;
+  border-radius: 10px;
+}
+
+.composer button.btn {
+  height: 2.4rem;
+  padding: 0 1.1rem;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+
+/* -------------------------------------------------------- empty states */
+.empty {
+  padding: var(--sp-10) var(--sp-4);
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  color: var(--text-faint);
+  font-style: normal;
+  opacity: 0.85;
+}
+
+/* -------------------------------------------------------- misc */
+.muted {
+  color: var(--text-dim);
+}
+.faint {
+  color: var(--text-faint);
+}
+
+.kv {
+  font-size: 12.5px;
+  gap: 0.35rem 1rem;
+}
+.kv dt {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 650;
+}
+.kv dd {
+  color: var(--text-dim);
+}
+
+/* Code blocks everywhere */
+pre.mono,
+.editor {
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+/* Refined focus ring */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(91, 140, 255, 0.18),
+    0 0 0 1px rgba(91, 140, 255, 0.55);
+}
+
+/* Smooth link underline transitions */
+a {
+  transition: color var(--dur-fast) var(--ease);
+}
+
+/* Sidebar and topbar backdrop tweaks */
+.topbar,
+.sidebar {
+  border-color: rgba(255, 255, 255, 0.055);
+}
+
+/* Make the sidebar a touch wider so labels breathe */
+.shell {
+  grid-template-columns: 15.5rem 1fr;
+}
+
+/* Cards: tighter default inside the grid */
+.grid .card {
+  padding: var(--sp-4) var(--sp-5);
+}
+
+/* Overview stat card: keep the version compact */
+.card .grid .stat .value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------- light theme */
+:root[data-theme='light'] .thinking {
+  color: #8a8a95;
+}
+
+:root[data-theme='light'] .msg .bubble {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 24px -20px rgba(20, 20, 30, 0.25);
+}
+
+:root[data-theme='light'] .card {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.03) inset,
+    0 12px 32px -24px rgba(20, 20, 30, 0.4);
+}
+
+/* -------------------------------------------------------- responsive */
+@media (max-width: 1100px) {
+  .main {
+    padding: var(--sp-5) var(--sp-5) var(--sp-8);
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .main {
+    padding: var(--sp-4) var(--sp-4) var(--sp-6);
+  }
+  .page-head h1 {
+    font-size: 1.1rem;
+  }
+}

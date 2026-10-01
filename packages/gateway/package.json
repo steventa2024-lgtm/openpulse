@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^4.0.17",
-    "@types/ws": "^8.18.1"
+    "@types/ws": "^8.18.1",
+    "playwright": "^1.63.0"
   }
 }

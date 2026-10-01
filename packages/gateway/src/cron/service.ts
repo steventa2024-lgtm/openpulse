@@ -39,6 +39,8 @@ export class CronService extends EventEmitter<{ cron: [CronEvent] }> {
   private jobs: CronJob[] = [];
   private timer: NodeJS.Timeout | undefined;
   private running = new Set<string>();
+  /** Scheduler ticks in progress, so shutdown can wait for their results to be saved. */
+  private ticks = new Set<Promise<void>>();
   private started = false;
   private readonly lock = new KeyedMutex();
   private readonly now: () => number;
@@ -63,6 +65,11 @@ export class CronService extends EventEmitter<{ cron: [CronEvent] }> {
   stop(): void {
     this.started = false;
     clearTimeout(this.timer);
+  }
+
+  /** Resolves once jobs the scheduler started have finished and their state is saved. */
+  async idle(): Promise<void> {
+    while (this.ticks.size > 0) await Promise.allSettled([...this.ticks]);
   }
 
   status() {
@@ -172,7 +179,13 @@ export class CronService extends EventEmitter<{ cron: [CronEvent] }> {
       .map((j) => j.state.nextRunAtMs!);
     if (next.length === 0) return;
     const delay = Math.max(0, Math.min(Math.min(...next) - this.now(), MAX_TIMER_MS));
-    this.timer = setTimeout(() => void this.tick(), delay);
+    this.timer = setTimeout(() => {
+      const tick = this.tick().catch((error: unknown) =>
+        this.deps.log.error(`cron tick failed: ${(error as Error).message}`),
+      );
+      this.ticks.add(tick);
+      void tick.finally(() => this.ticks.delete(tick));
+    }, delay);
     this.timer.unref?.();
   }
 

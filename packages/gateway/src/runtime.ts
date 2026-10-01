@@ -23,6 +23,7 @@ import { WorkflowEngine } from './workflows/engine.js';
 import { expandHome, resolvePaths, resolveStateDir, type StatePaths } from './infra/paths.js';
 import { canonicalSessionKey, DEFAULT_AGENT_ID } from './sessions/keys.js';
 import { SessionStore } from './sessions/store.js';
+import { RoutesStore } from './sessions/routes.js';
 import { readTranscript, textOf } from './sessions/transcript.js';
 import { BUNDLED_SKILLS_DIR } from './skills/bundled.js';
 import {
@@ -77,6 +78,7 @@ export class Runtime {
   readonly workflows: WorkflowEngine;
   /** Set by the server so agent-proposed changes reach connected clients immediately. */
   emitChange: ((changeId: string, projectId: string) => void) | undefined;
+  readonly routes: RoutesStore;
   readonly processes = new ProcessRegistry();
   readonly browser: BrowserSession;
   readonly runner: AgentRunner;
@@ -116,6 +118,8 @@ export class Runtime {
       dir: path.join(this.paths.stateDir, 'traces'),
       secrets: () => this.knownSecrets(),
     });
+    // routes.json lives at the state root (next to openpulse.json), not per-agent.
+    this.routes = new RoutesStore(this.paths.stateDir);
     this.browser = new BrowserSession(
       () => this.cfg.browser,
       path.join(this.paths.stateDir, 'media', 'browser'),
@@ -279,6 +283,7 @@ export class Runtime {
       config: () => this.cfg,
       agent: this.agent,
       sessions: this.sessions,
+      routes: this.routes,
       pairing: this.pairing,
       approvals: this.approvals,
       log: this.logs.logger('channels'),
@@ -476,17 +481,26 @@ export class Runtime {
   }
 
   async stop(): Promise<void> {
-    if (!this.started) return;
+    const wasStarted = this.started;
     this.started = false;
-    this.config.off('change', this.onConfigChange);
-    this.config.unwatch();
-    this.heartbeat.stop();
+    if (wasStarted) {
+      // First stop everything that can start a new turn.
+      this.config.off('change', this.onConfigChange);
+      this.config.unwatch();
+      this.heartbeat.stop();
+      this.cron.stop();
+      await this.channels.stopAll();
+    }
+    // Then stop every turn — including ones run without start() (the CLI's one-shot agent, tests)
+    // — and let them finish saving before anything else is torn down. Pending approvals are
+    // answered first so no turn is left waiting on one.
     this.cron.stop();
-    this.agent.abortAll();
     this.approvals.cancelAll();
     this.processes.killAll();
+    this.agent.abortAll();
+    await Promise.all([this.agent.idle(), this.cron.idle()]);
+    if (!wasStarted) return;
     this.tests.cancelAll();
-    await this.channels.stopAll();
     await this.mcp.stop();
     await this.browser.stop();
     this.log.info('runtime stopped');
