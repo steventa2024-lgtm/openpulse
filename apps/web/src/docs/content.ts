@@ -31,6 +31,12 @@ export const DOCS: DocPage[] = [
         app window.
       </p>
 
+      <p>
+        The <strong>Overview</strong> shows a <em>Get started</em> guide until the three steps below
+        are done. If no API key is set but a local model is installed, it offers to use that model
+        with one click.
+      </p>
+
       <h2>2. Connect a model</h2>
       <p>
         Install <a href="https://ollama.com" rel="noopener">Ollama</a> or

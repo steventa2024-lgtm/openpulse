@@ -28,7 +28,7 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - [x] **G — SDK**
 - [x] **H — Unified dashboard navigation** (and the "Halo" redesign)
 - [x] **I — Public website** (built and tested locally; not deployed — no hosting credentials)
-- [ ] **J — Packaging and release** (installer builds locally; CI and release workflow still to do)
+- [x] **J — Packaging and release** (CI, release and website workflows; every step run locally, not yet on GitHub)
 - [ ] **K — Final verification**
 
 ## Features
@@ -225,3 +225,32 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - `pnpm run check`: 339 tests pass, 0 lint errors. Installer and portable build rebuilt (unsigned —
   `Get-AuthenticodeSignature` reports NotSigned).
 - Next: Phase J (CI + release workflow), then final verification.
+
+### 2026-10-01 — Merge, CI and release automation, first-run guide
+
+- Merged the four Sept 22 commits from GitHub (named sessions, backup CLI, browser photos, model
+  registry). Restored the `openpulse approvals` command the backup commit had replaced; the earlier
+  DevOS stylesheets are kept but not loaded (they broke the Halo layout). Fixed the shutdown race
+  behind the intermittent ENOENT test errors: stop turn sources, answer approvals, then wait for
+  running agent turns and cron jobs before teardown (gateway suite clean on 8 consecutive runs).
+- **CI** (`.github/workflows/ci.yml`, Windows): frozen install, build, `pnpm run check`, unpacked
+  desktop package with a contents check. Simulated from a fresh clone here: install, build and check
+  pass (347 tests), packaging and the contents check pass.
+- **Release** (`release.yml`, on `v*` tags): version check, build, check, package, sign only with
+  `CSC_LINK`/`CSC_KEY_PASSWORD` secrets, read the signing status back with Get-AuthenticodeSignature,
+  `SHA256SUMS.txt`, notes, `gh release create`. Every step except the publish was run locally on the
+  real build (both binaries NotSigned → notes say "Code signing: unsigned"; checksums verified with
+  `sha256sum -c`). Caught and fixed: the previous-tag step would have failed the first release
+  (git describe's exit code). Helpers in `apps/desktop/scripts/release` with tests, including that the
+  download page reads the generated notes correctly.
+- **Website** (`website.yml`): GitHub Pages deploy, off until `DEPLOY_WEBSITE=true`.
+- **Packaged browser tool fixed**: electron-builder never copies `node_modules` into resources, so the
+  installed app had no playwright-core. It now ships in `gateway/vendor/` with the import rewritten;
+  verified by driving a browser from the packaged app's own Electron runtime.
+- **First-run guide** on the Overview: model (with a one-click local model when no API key is set,
+  preferring a laptop-sized tool-capable one), project, first question; hides when done or
+  dismissed. Verified on a brand-new state folder: default anthropic model without a key → "Use
+  ollama/qwen3:8b" → config updated → project added → first answer in 13 s → guide gone.
+- Not done: running the workflows on GitHub (needs a push), a public release (needs a tag push by the
+  owner), signed builds (no certificate), website online (needs Pages enabled), SDK on npm (no auth),
+  update notifications in the desktop app.

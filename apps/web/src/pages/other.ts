@@ -14,6 +14,9 @@ const UNRELEASED = [
   'Skills registry: install from Git or a folder, validate, update and remove, without running bundled scripts.',
   'Integrated test runner with agent-proposed fixes, an agent debugger and model monitoring.',
   'TypeScript SDK (prepared for npm, not yet published).',
+  'A "Get started" guide on first run: picks an installed local model when no API key is set, then a project and a first question.',
+  'Release automation: tagged builds are tested, packaged, checksummed and published with notes that give their code-signing status.',
+  'The "Halo" brand and redesign across the app and this website.',
 ];
 
 export function changelogPage(): Page {
@@ -70,8 +73,7 @@ const ROADMAP: { stage: string; note: string; items: string[] }[] = [
     note: 'Being finished for the first release.',
     items: [
       'First public Windows release with published checksums.',
-      'Release automation: build, checksum and upload from a tagged commit.',
-      'First-run onboarding in the desktop app.',
+      'This website online at a public address.',
     ],
   },
   {

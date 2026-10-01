@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Card, PageHead, Pill, Rows, Stat, useAction } from '../components/ui.js';
+import { GetStarted } from './GetStarted.js';
 import { useGateway, useGatewayEvent, useQuery } from '../gateway/provider.js';
 import { compactNumber, dateTime, duration, relativeTime } from '../format.js';
 import type { SessionRow, StatusSnapshot } from '../types.js';
@@ -41,6 +42,8 @@ export function OverviewPage(): JSX.Element {
           </button>
         }
       />
+
+      <GetStarted />
 
       <div className="grid">
         <Card>

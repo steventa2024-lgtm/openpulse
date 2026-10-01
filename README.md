@@ -196,4 +196,27 @@ pnpm build          # build all packages
 ```
 
 Tests are Vitest: the gateway suite runs a real gateway with a scripted model, the CLI suite drives
-the command tree against it, and the dashboard covers its formatting helpers.
+the command tree against it, the dashboard covers its helpers, the website checks every built page, and
+the desktop suite covers gateway supervision and the release scripts.
+
+Every push and pull request runs the same checks on GitHub Actions (Windows), plus an unpacked
+desktop build whose contents are verified.
+
+## Releasing
+
+```bash
+node apps/desktop/scripts/release/prepare.mjs set-version 0.2.0
+git commit -am "Release 0.2.0"
+git tag v0.2.0
+git push origin main v0.2.0
+```
+
+The tag starts the release workflow: it checks the tag matches every package version, builds and
+tests, packages the installer and portable build, writes `SHA256SUMS.txt`, and publishes a GitHub
+release whose notes give the checksums and the code-signing status read from the binaries. Builds
+are signed only when the `CSC_LINK` and `CSC_KEY_PASSWORD` repository secrets hold a certificate;
+otherwise they are published unsigned and the notes say so.
+
+The website (`apps/web`) deploys to GitHub Pages once you set Pages' source to GitHub Actions and add
+the repository variable `DEPLOY_WEBSITE=true`. To preview it locally:
+`pnpm --filter @openpulse/web run dev`.
