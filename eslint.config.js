@@ -37,6 +37,9 @@ export default tseslint.config(
       'packages/cli/**/*.ts',
       'packages/sdk/**/*.ts',
       'apps/desktop/**/*.{ts,mjs}',
+      'apps/web/scripts/**/*.ts',
+      'apps/web/test/**/*.ts',
+      'apps/web/src/**/*.ts',
       '*.js',
       'packages/*/*.ts',
       'apps/*/*.ts',
@@ -46,9 +49,14 @@ export default tseslint.config(
     },
   },
 
-  // The desktop preload runs in a renderer with contextIsolation, so it sees browser globals too.
+  // The desktop preload runs in a renderer with contextIsolation, so it sees browser globals too,
+  // as do the website's page scripts.
   {
-    files: ['apps/desktop/src/main/preload.ts', 'apps/desktop/src/shell/**/*.js'],
+    files: [
+      'apps/desktop/src/main/preload.ts',
+      'apps/desktop/src/shell/**/*.js',
+      'apps/web/src/client/**/*.ts',
+    ],
     languageOptions: {
       globals: { ...globals.browser },
     },

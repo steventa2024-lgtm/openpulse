@@ -19,6 +19,13 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@openpulse/gateway", "run", "demo"],
       "port": 18791
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@openpulse/web", "run", "preview"],
+      "port": 4321,
+      "url": "http://127.0.0.1:4321"
     }
   ]
 }

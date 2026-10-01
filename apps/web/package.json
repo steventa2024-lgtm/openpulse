@@ -1,0 +1,23 @@
+{
+  "name": "@openpulse/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The OpenPulse public website: a static site with a download page that reads GitHub releases",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build.ts",
+    "preview": "tsx scripts/serve.ts",
+    "dev": "tsx scripts/build.ts && tsx scripts/serve.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "screenshots": "tsx scripts/capture-screenshots.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "esbuild": "^0.27.2",
+    "playwright-core": "^1.63.0",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.1"
+  }
+}
