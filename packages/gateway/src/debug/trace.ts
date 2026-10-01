@@ -80,7 +80,8 @@ export class TraceRecorder {
         trace.endedAt = event.ts;
         trace.status = data.aborted ? 'aborted' : 'ok';
         const usage = data.usage as RunTrace['usage'];
-        if (usage) trace.usage = usage;
+        // A provider that reports nothing leaves both counts at zero: show that as unreported.
+        if (usage && usage.input + usage.output > 0) trace.usage = usage;
         this.flushBuffers(trace);
         this.push(trace, {
           ts: event.ts,

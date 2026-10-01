@@ -187,7 +187,9 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
   Started Phase B.
 
 ### 2026-09-28 — Dashboard batch 2 (models, monitoring, workflows, tests, debugger, MCP, permissions, skills registry UI)
+
 - New pages routed under AI / Developer tools / System; typecheck, lint (0 errors) and build pass.
 - Browser-verified against a live gateway: Tests page ran the demo project's real `npm test` (passed, output streamed); Models page detected the local Ollama models and a real test prompt to qwen2.5-coder:1.5b answered in 5s; Permissions, Workflows, MCP, Monitoring render with real (empty) data.
-- Fixed Monaco DiffEditor "TextModel got disposed" on unmount (keep models, dispose after the editor). Fix is built but not yet re-verified in the browser.
-- Not yet done: re-verify Changes diff after the fix, run a real agent turn to populate Debugger/Monitoring, full `pnpm run check`; then Phase I (website), Phase J (CI/release), docs, final report.
+- Fixed Monaco DiffEditor "TextModel got disposed" on unmount (keep models, dispose after the editor); verified in the browser: no console error after leaving Changes.
+- 2026-09-30: real agent runs via the SDK against Ollama qwen3:8b (one used the `read` tool, 21s) show up in Debugger and Monitoring. Token usage was always 0 because the OpenAI-compatible provider did not request stream usage; now `includeUsage: true` (verified: 4027 in / 153 out), and a provider that reports nothing shows "not reported" instead of 0. Debugger/Workflows list+detail layout no longer overflows horizontally. Test runner passes one quoted command line to the shell (no DEP0190 warning). `pnpm run check`: 303 tests pass.
+- Next: Phase I (website), Phase J (CI/release), docs, final report.

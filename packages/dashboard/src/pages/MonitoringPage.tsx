@@ -79,7 +79,7 @@ export function MonitoringPage(): JSX.Element {
     <>
       <PageHead
         title="Monitoring"
-        subtitle="What the agent loop measured. Token counts are the ones providers report; many local models report none."
+        subtitle="What the agent loop measured. Token counts are the ones providers report; a provider that reports none shows as not reported."
         actions={
           <select
             value={hours}

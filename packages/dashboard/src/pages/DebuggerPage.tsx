@@ -1,4 +1,4 @@
-import type { JSX } from 'react';
+import type { CSSProperties, JSX } from 'react';
 import { useMemo, useState } from 'react';
 import { Card, Empty, PageHead, Pill, Rows, useAction } from '../components/ui.js';
 import { useGateway, useGatewayEvent, useQuery } from '../gateway/provider.js';
@@ -128,7 +128,7 @@ export function DebuggerPage(): JSX.Element {
         }
       />
 
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(18rem, 26rem) 1fr' }}>
+      <div className="split" style={{ '--split-side': 'minmax(18rem, 26rem)' } as CSSProperties}>
         <Card title="Runs">
           <div className="toolbar">
             <select

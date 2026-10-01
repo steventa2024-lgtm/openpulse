@@ -1,4 +1,4 @@
-import type { JSX } from 'react';
+import type { CSSProperties, JSX } from 'react';
 import { useState } from 'react';
 import { Card, Empty, Field, PageHead, Pill, Rows, useAction } from '../components/ui.js';
 import { useGateway, useGatewayEvent, useQuery } from '../gateway/provider.js';
@@ -147,7 +147,7 @@ export function WorkflowsPage(): JSX.Element {
         </button>
       </Card>
 
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(16rem, 22rem) 1fr' }}>
+      <div className="split" style={{ '--split-side': 'minmax(16rem, 22rem)' } as CSSProperties}>
         <Card title="Runs">
           <Rows
             items={runs}

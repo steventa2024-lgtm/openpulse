@@ -78,9 +78,13 @@ export const createModel: ModelFactory = (ref, config) => {
       if (!baseURL)
         throw new ModelConfigError(`models.providers.${ref.provider}.baseUrl is required.`);
       if (!apiKey && builtin?.env) throw missingKey(ref.provider, builtin.env);
-      return createOpenAICompatible({ name: ref.provider, baseURL, ...(apiKey && { apiKey }) })(
-        ref.model,
-      );
+      // includeUsage asks for token counts on streamed replies; Ollama and LM Studio send them.
+      return createOpenAICompatible({
+        name: ref.provider,
+        baseURL,
+        includeUsage: true,
+        ...(apiKey && { apiKey }),
+      })(ref.model);
   }
 };
 

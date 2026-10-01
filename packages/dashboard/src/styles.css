@@ -1347,3 +1347,21 @@ button.link {
   cursor: pointer;
   padding: 0;
 }
+
+/* A fixed-width list beside a detail pane that may hold long, unwrapped lines. */
+.split {
+  display: grid;
+  grid-template-columns: var(--split-side, minmax(16rem, 22rem)) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.split > * {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -119,6 +119,13 @@ describe('trace recorder', () => {
     expect(trace.events.find((e) => e.kind === 'tool.result')!.durationMs).toBe(12);
   });
 
+  it('leaves usage unset when the provider reported no tokens', () => {
+    const traces = new TraceRecorder();
+    traces.record(event('run-0', 'lifecycle', { phase: 'start', model: 'm' }));
+    traces.record(event('run-0', 'lifecycle', { phase: 'end', usage: { input: 0, output: 0 } }));
+    expect(traces.get('run-0')!.usage).toBeUndefined();
+  });
+
   it('marks failing tools and failed runs', () => {
     const traces = new TraceRecorder();
     traces.record(event('run-2', 'lifecycle', { phase: 'start', model: 'm' }));

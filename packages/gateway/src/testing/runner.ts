@@ -91,9 +91,10 @@ export class TestRunner extends EventEmitter<{
     // On Windows npm, pnpm, yarn and gradlew are .cmd shims that only a shell can start. An
     // absolute path to a real executable does not need one (and would break on spaces if given it).
     const useShell = process.platform === 'win32' && !path.isAbsolute(suite.command);
+    // With a shell, pass one quoted command line: Node deprecates separate args with shell: true.
     const child = spawnFn(
-      useShell ? quoteForShell(suite.command) : suite.command,
-      useShell ? suite.args.map(quoteForShell) : suite.args,
+      useShell ? [suite.command, ...suite.args].map(quoteForShell).join(' ') : suite.command,
+      useShell ? [] : suite.args,
       {
         cwd: path.resolve(projectDir, suite.cwd || '.'),
         windowsHide: true,
