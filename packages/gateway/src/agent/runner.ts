@@ -22,6 +22,7 @@ import {
   parseModelRef,
   thinkingProviderOptions,
   type ModelFactory,
+  contextWindowFor,
 } from './models.js';
 import { buildSystemPrompt, DEFAULT_HEARTBEAT_PROMPT } from './system-prompt.js';
 import { buildTools } from './tools/index.js';
@@ -99,6 +100,8 @@ export interface RunnerDeps {
   };
   log: Logger;
   modelFactory?: ModelFactory;
+  /** The project open in the dashboard, so "src/auth.js" means a file in it. */
+  activeProject?: () => Promise<{ name: string; path: string } | undefined>;
 }
 
 /**
@@ -136,8 +139,13 @@ export class AgentRunner {
     const workspace = this.deps.workspace();
     const isMain = p.sessionKey === mainSessionKey(agentId, config.session.mainKey);
     const modelRefStr = p.model ?? entry.modelOverride ?? config.agents.defaults.model.primary;
-    const ref = parseModelRef(modelRefStr, config);
-    const modelName = formatModelRef(ref);
+    let ref = parseModelRef(modelRefStr, config);
+    let modelName = formatModelRef(ref);
+    // Configured fallbacks take over when a model fails before producing anything. A model asked
+    // for explicitly (a workflow role's model, a model test) is used on its own.
+    const fallbackRefs = p.model
+      ? []
+      : config.agents.defaults.model.fallbacks.filter((f) => f !== modelRefStr);
     const thinking = p.thinking ?? entry.thinkingLevel ?? config.agents.defaults.thinkingDefault;
     const usage = { input: 0, output: 0, total: 0 };
     let toolCalls = 0;
@@ -145,10 +153,7 @@ export class AgentRunner {
     agentEvent('lifecycle', { phase: 'start', model: modelName, thinking });
 
     // Context first (before appending the new message).
-    const history = transcriptToMessages(
-      await readTranscript(file),
-      config.agents.defaults.contextTokens * 3,
-    );
+    const prior = await readTranscript(file);
     await appendTranscript(
       file,
       entry.sessionId,
@@ -195,14 +200,18 @@ export class AgentRunner {
       };
     };
 
-    let model;
-    try {
-      model = this.modelFactory(ref, config);
-    } catch (error) {
-      return fail((error as Error).message);
-    }
-
     const skills = await this.deps.skills();
+    const project = await this.deps.activeProject?.().catch(() => undefined);
+    const extra =
+      [
+        project &&
+          `## Active project\nThe developer has the project "${project.name}" open at ${project.path}. ` +
+            'When they name a file by a relative path, it is relative to that folder: give read, write ' +
+            'and edit the absolute path. propose_change takes paths relative to the project.',
+        p.extraSystemPrompt,
+      ]
+        .filter(Boolean)
+        .join('\n\n') || undefined;
     const tools = buildTools({
       config,
       browser: this.deps.services.browser,
@@ -223,27 +232,29 @@ export class AgentRunner {
       ...(p.signal && { signal: p.signal }),
     };
 
-    const system = buildSystemPrompt({
-      agentId,
-      workspace,
-      tools,
-      skillsXml: formatSkillsForPrompt(skills),
-      bootstrap: config.agents.defaults.skipBootstrap
-        ? []
-        : await loadBootstrapFiles(workspace, {
-            includeMemory: isMain,
-            maxChars: config.agents.defaults.bootstrapMaxChars,
-            totalMaxChars: config.agents.defaults.bootstrapTotalMaxChars,
-          }),
-      isMainSession: isMain,
-      heartbeatPrompt: config.agents.defaults.heartbeat.prompt ?? DEFAULT_HEARTBEAT_PROMPT,
-      model: modelName,
-      thinking,
-      timezone:
-        config.agents.defaults.userTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-      ...(p.source.channel !== undefined && { channel: p.source.channel }),
-      ...(p.extraSystemPrompt !== undefined && { extra: p.extraSystemPrompt }),
-    });
+    const bootstrap = config.agents.defaults.skipBootstrap
+      ? []
+      : await loadBootstrapFiles(workspace, {
+          includeMemory: isMain,
+          maxChars: config.agents.defaults.bootstrapMaxChars,
+          totalMaxChars: config.agents.defaults.bootstrapTotalMaxChars,
+        });
+    const systemFor = (model: string) =>
+      buildSystemPrompt({
+        agentId,
+        workspace,
+        tools,
+        skillsXml: formatSkillsForPrompt(skills),
+        bootstrap,
+        isMainSession: isMain,
+        heartbeatPrompt: config.agents.defaults.heartbeat.prompt ?? DEFAULT_HEARTBEAT_PROMPT,
+        model,
+        thinking,
+        timezone:
+          config.agents.defaults.userTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(p.source.channel !== undefined && { channel: p.source.channel }),
+        ...(extra !== undefined && { extra }),
+      });
 
     const toolSet: ToolSet = {};
     for (const t of tools) toolSet[t.name] = this.wrapTool(t, ctx, agentEvent, () => toolCalls++);
@@ -293,88 +304,130 @@ export class AgentRunner {
 
     const timeout = AbortSignal.timeout(config.agents.defaults.timeoutSeconds * 1000);
     const signal = p.signal ? AbortSignal.any([p.signal, timeout]) : timeout;
-    const providerOptions = thinkingProviderOptions(ref, thinking);
-    const maxOutputTokens = maxOutputTokensFor(ref);
-
-    try {
-      const result = streamText({
-        model,
-        system,
-        messages: [...history, { role: 'user', content: p.message }],
-        tools: toolSet,
-        stopWhen: isStepCount(config.agents.defaults.maxToolSteps),
-        abortSignal: signal,
-        maxRetries: 2,
-        ...(providerOptions && { providerOptions: providerOptions as never }),
-        ...(maxOutputTokens !== undefined && { maxOutputTokens }),
-      });
-
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case 'text-delta':
-            stepText += part.text;
-            runText += part.text;
-            agentEvent('assistant', { delta: part.text });
-            chatEvent({
-              state: 'delta',
-              message: {
-                role: 'assistant',
-                content: [{ type: 'text', text: runText }],
-                timestamp: Date.now(),
-              },
-            });
-            break;
-          case 'reasoning-delta':
-            stepThinking += part.text;
-            agentEvent('thinking', { delta: part.text });
-            break;
-          case 'tool-call':
-            stepCalls.push({
-              type: 'toolCall',
-              id: part.toolCallId,
-              name: part.toolName,
-              arguments: part.input,
-            });
-            if (runText && !runText.endsWith('\n\n')) runText += '\n\n';
-            break;
-          case 'tool-result':
-            stepResults.push({
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              text: String(part.output ?? ''),
-              isError: String(part.output ?? '').startsWith('ERROR: '),
-            });
-            break;
-          case 'tool-error':
-            stepResults.push({
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              text: `ERROR: ${errorText(part.error)}`,
-              isError: true,
-            });
-            break;
-          case 'finish-step':
-            usage.input += part.usage.inputTokens ?? 0;
-            usage.output += part.usage.outputTokens ?? 0;
-            await flushStep(
-              part.finishReason === 'tool-calls'
-                ? 'toolUse'
-                : part.finishReason === 'length'
-                  ? 'length'
-                  : 'stop',
-            );
-            break;
-          case 'abort':
-            aborted = true;
-            break;
-          case 'error':
-            streamError = errorText(part.error);
-            break;
+    const candidates = [modelRefStr, ...fallbackRefs];
+    for (let attempt = 0; attempt < candidates.length; attempt += 1) {
+      if (attempt > 0) {
+        const next = candidates[attempt]!;
+        log.warn(`model ${modelName} failed (${streamError}); trying fallback ${next}`);
+        agentEvent('lifecycle', {
+          phase: 'fallback',
+          from: modelName,
+          to: next,
+          error: streamError,
+        });
+        streamError = undefined;
+        try {
+          ref = parseModelRef(next, config);
+          modelName = formatModelRef(ref);
+        } catch (error) {
+          streamError = errorText(error);
+          continue;
         }
       }
-    } catch (error) {
-      if (signal.aborted) aborted = true;
-      else streamError = errorText(error);
+      let model;
+      try {
+        model = this.modelFactory(ref, config);
+      } catch (error) {
+        streamError = (error as Error).message;
+        continue;
+      }
+      const providerOptions = thinkingProviderOptions(ref, thinking);
+      const maxOutputTokens = maxOutputTokensFor(ref);
+      const system = systemFor(modelName);
+      const history = transcriptToMessages(
+        prior,
+        historyBudgetChars(
+          config.agents.defaults.contextTokens,
+          contextWindowFor(ref, config),
+          system.length + p.message.length,
+        ),
+      );
+
+      try {
+        const result = streamText({
+          model,
+          system,
+          messages: [...history, { role: 'user', content: p.message }],
+          tools: toolSet,
+          stopWhen: isStepCount(config.agents.defaults.maxToolSteps),
+          abortSignal: signal,
+          maxRetries: 2,
+          ...(providerOptions && { providerOptions: providerOptions as never }),
+          ...(maxOutputTokens !== undefined && { maxOutputTokens }),
+        });
+
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case 'text-delta':
+              stepText += part.text;
+              runText += part.text;
+              agentEvent('assistant', { delta: part.text });
+              chatEvent({
+                state: 'delta',
+                message: {
+                  role: 'assistant',
+                  content: [{ type: 'text', text: runText }],
+                  timestamp: Date.now(),
+                },
+              });
+              break;
+            case 'reasoning-delta':
+              stepThinking += part.text;
+              agentEvent('thinking', { delta: part.text });
+              break;
+            case 'tool-call':
+              stepCalls.push({
+                type: 'toolCall',
+                id: part.toolCallId,
+                name: part.toolName,
+                arguments: part.input,
+              });
+              if (runText && !runText.endsWith('\n\n')) runText += '\n\n';
+              break;
+            case 'tool-result':
+              stepResults.push({
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                text: String(part.output ?? ''),
+                isError: String(part.output ?? '').startsWith('ERROR: '),
+              });
+              break;
+            case 'tool-error':
+              stepResults.push({
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                text: `ERROR: ${errorText(part.error)}`,
+                isError: true,
+              });
+              break;
+            case 'finish-step':
+              usage.input += part.usage.inputTokens ?? 0;
+              usage.output += part.usage.outputTokens ?? 0;
+              await flushStep(
+                part.finishReason === 'tool-calls'
+                  ? 'toolUse'
+                  : part.finishReason === 'length'
+                    ? 'length'
+                    : 'stop',
+              );
+              break;
+            case 'abort':
+              aborted = true;
+              break;
+            case 'error':
+              streamError = errorText(part.error);
+              break;
+          }
+        }
+      } catch (error) {
+        if (signal.aborted) aborted = true;
+        else streamError = errorText(error);
+      }
+      // Only a model that failed before saying or doing anything is replaced: anything later would
+      // mean replaying tool calls or splicing two models' answers together.
+      const producedNothing =
+        !runText && !stepText && !stepThinking && stepCalls.length === 0 && toolCalls === 0;
+      if (!streamError || aborted || signal.aborted || !producedNothing) break;
     }
 
     if (aborted || signal.aborted) {
@@ -602,4 +655,24 @@ function errorText(error: unknown): string {
   } catch {
     return 'Unknown error';
   }
+}
+
+/** Rough characters per token, on the safe side for code and English. */
+const CHARS_PER_TOKEN = 3;
+/** Tokens kept free for the tool definitions and the model's reply. */
+const RESERVED_TOKENS = 4_096;
+
+/**
+ * How many characters of earlier conversation to send. With a known context window (a local
+ * model), history gets what is left after the system prompt, the new message and the reserve, so
+ * the prompt is never silently cut from the front by the model server.
+ */
+export function historyBudgetChars(
+  configuredTokens: number,
+  windowTokens: number | undefined,
+  fixedChars: number,
+): number {
+  if (windowTokens === undefined) return configuredTokens * CHARS_PER_TOKEN;
+  const available = windowTokens - Math.ceil(fixedChars / CHARS_PER_TOKEN) - RESERVED_TOKENS;
+  return Math.max(0, Math.min(configuredTokens, available)) * CHARS_PER_TOKEN;
 }

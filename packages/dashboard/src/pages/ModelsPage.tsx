@@ -299,10 +299,11 @@ export function ModelsPage(): JSX.Element {
         </Card>
       ))}
 
-      <Card title="Fallback model">
+      <Card title="Fallback models">
         <p className="muted" style={{ marginTop: 0 }}>
-          Used when the default model fails. Any model reference works, for example{' '}
-          <span className="mono">ollama/qwen3:8b</span>.
+          Tried in order when the default model fails before answering — not running, not installed
+          or missing a key. Separate several with commas, for example{' '}
+          <span className="mono">ollama/qwen3:8b, lmstudio/qwen2.5-coder-7b</span>.
         </p>
         <form
           style={{ display: 'flex', gap: '0.5rem' }}
@@ -312,7 +313,10 @@ export function ModelsPage(): JSX.Element {
             void act(async () => {
               await request('models.use', {
                 primary: current.primary,
-                fallbacks: fallback.trim() ? [fallback.trim()] : [],
+                fallbacks: fallback
+                  .split(',')
+                  .map((ref) => ref.trim())
+                  .filter(Boolean),
               });
               setFallback('');
               detect.reload();

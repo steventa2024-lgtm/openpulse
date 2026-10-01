@@ -240,6 +240,10 @@ export class Runtime {
       services,
       log: this.logs.logger('agent'),
       ...(options.modelFactory && { modelFactory: options.modelFactory }),
+      activeProject: async () => {
+        const project = await this.projects.active();
+        return project ? { name: project.name, path: project.path } : undefined;
+      },
     });
     this.agent = new AgentService({
       runner: this.runner,
@@ -310,6 +314,7 @@ export class Runtime {
     await rt.approvals.load();
     await rt.projects.load();
     await rt.telemetry.load();
+    await rt.traces.load();
     await rt.workflows.load();
     await rt.refreshFsPolicy();
     return rt;

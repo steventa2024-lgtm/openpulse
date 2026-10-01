@@ -20,9 +20,14 @@ const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'expected HH:
 const ProviderSchema = z
   .object({
     /** Wire protocol. Built-in ids (anthropic, openai, ollama, lmstudio, openrouter) infer it. */
-    api: z.enum(['anthropic', 'openai', 'openai-compatible']).optional(),
+    api: z.enum(['anthropic', 'openai', 'openai-compatible', 'ollama']).optional(),
     baseUrl: z.string().url().optional(),
     apiKey: z.string().optional(),
+    /**
+     * The model's context window in tokens. Ollama is asked for this much (default 16384);
+     * for every provider, history is trimmed to fit it.
+     */
+    contextTokens: z.number().int().min(2048).max(2_000_000).optional(),
   })
   .strict();
 

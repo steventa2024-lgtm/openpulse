@@ -33,6 +33,7 @@
     "ai": "^7.0.105",
     "croner": "^10.0.1",
     "json5": "^2.2.3",
+    "ollama-ai-provider-v2": "^4.0.1",
     "playwright-core": "^1.63.0",
     "ws": "^8.21.3",
     "yaml": "^2.9.1",

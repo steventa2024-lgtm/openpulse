@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, ChatEvent } from '../src/agent/runner.js';
 import { stripHeartbeatToken, isSilentReply, HEARTBEAT_TOKEN } from '../src/agent/system-prompt.js';
 import { readTranscript, textOf } from '../src/sessions/transcript.js';
-import { makeRuntime } from './helpers.js';
+import { makeRuntime, tempDir } from './helpers.js';
 import type { ScriptedStep } from './llm-helpers.js';
 
 const MAIN = 'agent:main:main';
@@ -50,6 +50,19 @@ describe('agent runner', () => {
     expect(transcript.map((e) => e.message.role)).toEqual(['user', 'assistant']);
     expect(textOf(transcript[1]!.message.content)).toBe('Hello!');
     expect(entry.totalTokens).toBeGreaterThan(0);
+  });
+
+  it('tells the agent which project is open, so relative paths mean files in it', async () => {
+    const { rt, script } = await makeRuntime([{ text: 'ok' }, { text: 'ok' }]);
+    await rt.agent.runAndWait({ sessionKey: MAIN, message: 'hi', source: { kind: 'user' } });
+    expect(script.system(0)).not.toContain('## Active project');
+
+    const projectDir = await tempDir('openpulse-project-');
+    const project = await rt.projects.add({ path: projectDir, name: 'demo-app' });
+    await rt.projects.setActive(project.id);
+    await rt.agent.runAndWait({ sessionKey: MAIN, message: 'hi', source: { kind: 'user' } });
+    expect(script.system(1)).toContain('## Active project');
+    expect(script.system(1)).toContain(`"demo-app" open at ${project.path}`);
   });
 
   it('omits MEMORY.md guidance outside the main session', async () => {

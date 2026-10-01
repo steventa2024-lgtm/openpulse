@@ -23,6 +23,7 @@ interface TraceEvent {
     | 'run.start'
     | 'run.end'
     | 'run.error'
+    | 'model.fallback'
     | 'thinking'
     | 'assistant'
     | 'tool.start'
@@ -45,6 +46,7 @@ const KIND_LABELS: Record<TraceEvent['kind'], string> = {
   'run.start': 'start',
   'run.end': 'end',
   'run.error': 'error',
+  'model.fallback': 'fallback',
   thinking: 'reasoning',
   assistant: 'output',
   'tool.start': 'tool call',
@@ -167,8 +169,8 @@ export function DebuggerPage(): JSX.Element {
                       {r.sessionKey}
                     </div>
                     <span className="faint" style={{ fontSize: 11 }}>
-                      {r.model ?? ''} · {r.toolCalls} tools{r.errors ? ` · ${r.errors} errors` : ''}{' '}
-                      · {relativeTime(r.startedAt)}
+                      {r.model ?? ''} · {r.toolCalls} {r.toolCalls === 1 ? 'tool' : 'tools'}
+                      {r.errors ? ` · ${r.errors} errors` : ''} · {relativeTime(r.startedAt)}
                     </span>
                   </>
                 ),

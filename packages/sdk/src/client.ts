@@ -513,7 +513,9 @@ export class OpenPulseClient {
             id: clientId,
             displayName: this.options.clientName ?? 'OpenPulse SDK',
             version: SDK_VERSION,
-            platform: typeof process !== 'undefined' ? process.platform : 'browser',
+            // No Node types in the published build: the SDK has to compile for browsers too.
+            platform:
+              (globalThis as { process?: { platform?: string } }).process?.platform ?? 'browser',
             mode: 'operator',
           },
           role,

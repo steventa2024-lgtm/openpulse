@@ -7,6 +7,7 @@ export type TraceKind =
   | 'run.start'
   | 'run.end'
   | 'run.error'
+  | 'model.fallback'
   | 'thinking'
   | 'assistant'
   | 'tool.start'
@@ -59,6 +60,48 @@ export class TraceRecorder {
 
   constructor(private readonly options: { secrets?: () => string[]; dir?: string } = {}) {}
 
+  /**
+   * Read back the most recent finished runs written by earlier gateway processes, so the debugger
+   * keeps its history across restarts. Unreadable lines are skipped.
+   */
+  async load(): Promise<void> {
+    if (!this.options.dir) return;
+    let files: string[];
+    try {
+      files = (await fsp.readdir(this.options.dir)).filter((f) =>
+        /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f),
+      );
+    } catch {
+      return;
+    }
+    const loaded: RunTrace[] = [];
+    for (const file of files.sort().reverse()) {
+      let text: string;
+      try {
+        text = await fsp.readFile(path.join(this.options.dir, file), 'utf8');
+      } catch {
+        continue;
+      }
+      for (const line of text.split('\n').reverse()) {
+        if (!line.trim()) continue;
+        try {
+          const trace = JSON.parse(line) as RunTrace;
+          if (!trace.runId || !Array.isArray(trace.events)) continue;
+          // Older traces stored zero counts from providers that reported nothing.
+          if (trace.usage && trace.usage.input + trace.usage.output === 0) delete trace.usage;
+          loaded.push(trace);
+        } catch {
+          // A torn last line from a crash; the rest of the file is still good.
+        }
+        if (loaded.length >= MAX_RUNS) break;
+      }
+      if (loaded.length >= MAX_RUNS) break;
+    }
+    for (const trace of loaded.sort((a, b) => a.startedAt - b.startedAt)) {
+      if (!this.runs.has(trace.runId)) this.runs.set(trace.runId, trace);
+    }
+  }
+
   record(event: AgentEvent): void {
     const trace = this.ensure(event);
     const secrets = this.options.secrets?.() ?? [];
@@ -72,6 +115,19 @@ export class TraceRecorder {
           ts: event.ts,
           kind: 'run.start',
           label: `Run started${trace.model ? ` on ${trace.model}` : ''}`,
+          data: sanitizeValue(data, secrets) as Record<string, unknown>,
+        });
+        return;
+      }
+      if (phase === 'fallback') {
+        this.flushBuffers(trace);
+        trace.errors += 1;
+        trace.model = typeof data.to === 'string' ? data.to : trace.model;
+        this.push(trace, {
+          ts: event.ts,
+          kind: 'model.fallback',
+          label: `${str(data.from, 'Model')} failed; switched to ${str(data.to, 'a fallback')}`,
+          isError: true,
           data: sanitizeValue(data, secrets) as Record<string, unknown>,
         });
         return;

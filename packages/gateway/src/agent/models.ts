@@ -1,7 +1,8 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import type { LanguageModel } from 'ai';
+import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from 'ai';
+import { createOllama } from 'ollama-ai-provider-v2';
 import type { OpenPulseConfig, ThinkingLevel } from '../config/schema.js';
 
 export interface ModelRef {
@@ -18,7 +19,7 @@ export class ModelConfigError extends Error {
 
 const BUILTIN: Record<
   string,
-  { api: 'anthropic' | 'openai' | 'openai-compatible'; baseUrl?: string; env?: string }
+  { api: 'anthropic' | 'openai' | 'openai-compatible' | 'ollama'; baseUrl?: string; env?: string }
 > = {
   anthropic: { api: 'anthropic', env: 'ANTHROPIC_API_KEY' },
   openai: { api: 'openai', env: 'OPENAI_API_KEY' },
@@ -27,7 +28,10 @@ const BUILTIN: Record<
     baseUrl: 'https://openrouter.ai/api/v1',
     env: 'OPENROUTER_API_KEY',
   },
-  ollama: { api: 'openai-compatible', baseUrl: 'http://127.0.0.1:11434/v1' },
+  // Ollama's native API, not its OpenAI-compatible one: only the native API accepts a context
+  // size per request, and without it Ollama loads every model with a 4k window and silently
+  // drops the start of longer prompts — the system prompt and the task.
+  ollama: { api: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
   lmstudio: { api: 'openai-compatible', baseUrl: 'http://127.0.0.1:1234/v1' },
 };
 
@@ -49,6 +53,31 @@ export function parseModelRef(ref: string, config?: OpenPulseConfig): ModelRef {
   return { provider: trimmed.slice(0, slash), model: trimmed.slice(slash + 1) };
 }
 
+/** Context window OpenPulse asks Ollama for when a provider does not set contextTokens. */
+export const OLLAMA_DEFAULT_CONTEXT = 16_384;
+
+function apiFor(ref: ModelRef, config: OpenPulseConfig) {
+  const custom = config.models.providers[ref.provider];
+  return (
+    custom?.api ?? BUILTIN[ref.provider]?.api ?? (custom?.baseUrl ? 'openai-compatible' : undefined)
+  );
+}
+
+/**
+ * The context window a model will actually get, when OpenPulse knows it: a provider's
+ * contextTokens setting, or the window it requests from Ollama. Undefined means "large enough".
+ */
+export function contextWindowFor(ref: ModelRef, config: OpenPulseConfig): number | undefined {
+  const configured = config.models.providers[ref.provider]?.contextTokens;
+  if (configured) return configured;
+  return apiFor(ref, config) === 'ollama' ? OLLAMA_DEFAULT_CONTEXT : undefined;
+}
+
+/** "http://host:11434", ".../v1" or ".../api" → "http://host:11434/api". */
+export function ollamaApiBase(url: string): string {
+  return `${url.replace(/\/+$/, '').replace(/\/(v1|api)$/, '')}/api`;
+}
+
 export function formatModelRef(ref: ModelRef): string {
   return `${ref.provider}/${ref.model}`;
 }
@@ -58,7 +87,7 @@ export type ModelFactory = (ref: ModelRef, config: OpenPulseConfig) => LanguageM
 export const createModel: ModelFactory = (ref, config) => {
   const custom = config.models.providers[ref.provider];
   const builtin = BUILTIN[ref.provider];
-  const api = custom?.api ?? builtin?.api ?? (custom?.baseUrl ? 'openai-compatible' : undefined);
+  const api = apiFor(ref, config);
   if (!api) {
     throw new ModelConfigError(
       `Unknown model provider "${ref.provider}". Configure models.providers.${ref.provider} with an api and baseUrl.`,
@@ -85,6 +114,22 @@ export const createModel: ModelFactory = (ref, config) => {
         includeUsage: true,
         ...(apiKey && { apiKey }),
       })(ref.model);
+    case 'ollama': {
+      if (!baseURL)
+        throw new ModelConfigError(`models.providers.${ref.provider}.baseUrl is required.`);
+      const model = createOllama({
+        baseURL: ollamaApiBase(baseURL),
+        ...(apiKey && { headers: { Authorization: `Bearer ${apiKey}` } }),
+      })(ref.model);
+      return wrapLanguageModel({
+        model,
+        middleware: defaultSettingsMiddleware({
+          settings: {
+            providerOptions: { ollama: { options: { num_ctx: contextWindowFor(ref, config) } } },
+          },
+        }),
+      });
+    }
   }
 };
 

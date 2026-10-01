@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 import { sanitizeText, sanitizeValue } from '../src/debug/sanitize.js';
 import { TraceRecorder } from '../src/debug/trace.js';
 import type { AgentEvent } from '../src/agent/runner.js';
-import { makeRuntime } from './helpers.js';
+import { makeRuntime, tempDir } from './helpers.js';
 
 let seq = 0;
 function event(
@@ -117,6 +119,31 @@ describe('trace recorder', () => {
       'The login function is fine.',
     );
     expect(trace.events.find((e) => e.kind === 'tool.result')!.durationMs).toBe(12);
+  });
+
+  it('keeps finished runs across a restart', async () => {
+    const dir = await tempDir();
+    const before = new TraceRecorder({ dir });
+    before.record(event('kept', 'lifecycle', { phase: 'start', model: 'ollama/qwen3:8b' }));
+    before.record(event('kept', 'lifecycle', { phase: 'end', usage: { input: 5, output: 2 } }));
+    before.record(event('failed', 'lifecycle', { phase: 'start' }));
+    before.record(event('failed', 'lifecycle', { phase: 'error', error: 'model went away' }));
+    // Persisting is fire-and-forget; wait for both lines to reach the file.
+    await vi.waitFor(async () => {
+      const files = await fs.readdir(dir);
+      const text = await fs.readFile(path.join(dir, files[0]!), 'utf8');
+      expect(text.trim().split('\n')).toHaveLength(2);
+    });
+    await fs.appendFile(path.join(dir, (await fs.readdir(dir))[0]!), '{"torn line');
+
+    const after = new TraceRecorder({ dir });
+    await after.load();
+    expect(after.get('kept')).toMatchObject({
+      status: 'ok',
+      model: 'ollama/qwen3:8b',
+      usage: { input: 5 },
+    });
+    expect(after.get('failed')).toMatchObject({ status: 'error', error: 'model went away' });
   });
 
   it('leaves usage unset when the provider reported no tokens', () => {

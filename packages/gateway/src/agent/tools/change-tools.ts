@@ -52,7 +52,8 @@ export const proposeChangeTool = defineTool({
           `Proposed "${input.title}" for review (${result.files.length} file${result.files.length === 1 ? '' : 's'}).`,
           ...lines,
           '',
-          'The developer reviews and approves it under Workspace → Changes. Nothing has been written yet.',
+          'Status: waiting for review. It is NOT approved and NOT written to disk.',
+          'Tell the developer it is ready to review under Workspace → Changes. Do not write these files yourself.',
         ].join('\n'),
       );
     } catch (error) {
