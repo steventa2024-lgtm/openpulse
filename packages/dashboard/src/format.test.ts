@@ -8,7 +8,19 @@ import {
   relativeTime,
   scheduleLabel,
   sessionLabel,
+  titleFrom,
 } from './format.js';
+
+describe('titleFrom', () => {
+  it('names a conversation after what was asked', () => {
+    expect(titleFrom('Why does the auth test fail?')).toBe('Why does the auth test fail?');
+    expect(
+      titleFrom('Read the relevant files and explain how this works:\n\nthe login function'),
+    ).toBe('the login function');
+    expect(titleFrom('  first line\nsecond line')).toBe('first line');
+    expect(titleFrom('x'.repeat(80))).toHaveLength(48);
+  });
+});
 
 describe('relativeTime', () => {
   it('describes the past and the future', () => {

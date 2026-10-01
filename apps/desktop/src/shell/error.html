@@ -10,13 +10,14 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #101012;
-        --panel: #19191c;
-        --line: #2c2c33;
-        --text: #ececf1;
-        --dim: #a6a6b3;
-        --accent: #f5654a;
-        --err: #f2555a;
+        --bg: #070b1d;
+        --panel: #0e1434;
+        --inset: #0b1130;
+        --line: #1e2654;
+        --text: #e8eaff;
+        --dim: #a6acd6;
+        --accent: #7c3aed;
+        --err: #f87171;
       }
       * {
         box-sizing: border-box;
@@ -64,20 +65,20 @@
         padding: 0.4rem 0.9rem;
         border-radius: 0.5rem;
         border: 1px solid var(--line);
-        background: #141417;
+        background: var(--inset);
         color: var(--text);
         cursor: pointer;
       }
       button.primary {
-        background: var(--accent);
-        border-color: var(--accent);
+        background: linear-gradient(135deg, #7c3aed, #6366f1 55%, #3b82f6);
+        border-color: rgb(139 124 255 / 0.6);
         color: #fff;
         font-weight: 600;
       }
       pre {
         margin-top: 1.25rem;
         padding: 0.6rem;
-        background: #141417;
+        background: var(--inset);
         border: 1px solid var(--line);
         border-radius: 0.5rem;
         font-family: ui-monospace, 'Cascadia Mono', monospace;

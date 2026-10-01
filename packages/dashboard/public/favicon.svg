@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="halo-ring" x1="22" y1="20" x2="106" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8" />
+      <stop offset="0.5" stop-color="#6366F1" />
+      <stop offset="1" stop-color="#A855F7" />
+    </linearGradient>
+    <linearGradient id="halo-inner" x1="100" y1="28" x2="46" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ECFEFF" />
+      <stop offset="0.35" stop-color="#67E8F9" />
+      <stop offset="0.75" stop-color="#6366F1" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="halo-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+  <circle cx="64" cy="64" r="42" stroke="url(#halo-ring)" stroke-width="10" opacity="0.85" filter="url(#halo-glow)" />
+  <circle cx="72" cy="57" r="31" stroke="#67E8F9" stroke-width="6" opacity="0.45" filter="url(#halo-glow)" />
+  <circle cx="64" cy="64" r="42" stroke="url(#halo-ring)" stroke-width="7" />
+  <circle cx="72" cy="57" r="31" stroke="url(#halo-inner)" stroke-width="4.5" />
+</svg>

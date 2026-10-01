@@ -1,5 +1,37 @@
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
+import {
+  Activity,
+  BookOpen,
+  Bug,
+  Clock,
+  Diamond,
+  FileDiff,
+  FolderOpen,
+  GitBranch,
+  History,
+  House,
+  List,
+  type LucideIcon,
+  MessageSquare,
+  Moon,
+  PenLine,
+  Plug,
+  Radio,
+  ScrollText,
+  Search,
+  Server,
+  Settings,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  SquareCheckBig,
+  Stethoscope,
+  Sun,
+  Workflow,
+} from 'lucide-react';
+import { CommandPalette } from './components/CommandPalette.js';
+import { HaloMark } from './components/Halo.js';
 import { Pill, ToastProvider } from './components/ui.js';
 import { GatewayProvider, useGateway, useGatewayEvent } from './gateway/provider.js';
 import type { HealthSnapshot } from './types.js';
@@ -33,47 +65,65 @@ interface Route {
   id: string;
   label: string;
   group: string;
-  icon: string;
+  icon: LucideIcon;
   element: () => JSX.Element;
 }
 
 const ROUTES: Route[] = [
   // Home
-  { id: 'overview', label: 'Overview', group: 'Home', icon: '◉', element: OverviewPage },
+  { id: 'overview', label: 'Overview', group: 'Home', icon: House, element: OverviewPage },
   // Workspace
-  { id: 'projects', label: 'Projects', group: 'Workspace', icon: '▦', element: ProjectsPage },
-  { id: 'editor', label: 'Editor', group: 'Workspace', icon: '✎', element: EditorPage },
-  { id: 'git', label: 'Git', group: 'Workspace', icon: '⑂', element: GitPage },
-  { id: 'changes', label: 'Changes', group: 'Workspace', icon: '±', element: ChangesPage },
+  {
+    id: 'projects',
+    label: 'Projects',
+    group: 'Workspace',
+    icon: FolderOpen,
+    element: ProjectsPage,
+  },
+  { id: 'editor', label: 'Editor', group: 'Workspace', icon: PenLine, element: EditorPage },
+  { id: 'git', label: 'Git', group: 'Workspace', icon: GitBranch, element: GitPage },
+  { id: 'changes', label: 'Changes', group: 'Workspace', icon: FileDiff, element: ChangesPage },
   {
     id: 'checkpoints',
     label: 'Checkpoints',
     group: 'Workspace',
-    icon: '⟲',
+    icon: History,
     element: CheckpointsPage,
   },
   // AI
-  { id: 'chat', label: 'Chat', group: 'AI', icon: '✦', element: ChatPage },
-  { id: 'workflows', label: 'Workflows', group: 'AI', icon: '⋔', element: WorkflowsPage },
-  { id: 'models', label: 'Models', group: 'AI', icon: '◇', element: ModelsPage },
-  { id: 'monitoring', label: 'Monitoring', group: 'AI', icon: '∿', element: MonitoringPage },
-  { id: 'sessions', label: 'Sessions', group: 'AI', icon: '☰', element: SessionsPage },
+  { id: 'chat', label: 'Chat', group: 'AI', icon: MessageSquare, element: ChatPage },
+  { id: 'workflows', label: 'Workflows', group: 'AI', icon: Workflow, element: WorkflowsPage },
+  { id: 'models', label: 'Models', group: 'AI', icon: Diamond, element: ModelsPage },
+  { id: 'monitoring', label: 'Monitoring', group: 'AI', icon: Activity, element: MonitoringPage },
+  { id: 'sessions', label: 'Sessions', group: 'AI', icon: List, element: SessionsPage },
   // Automation
-  { id: 'cron', label: 'Cron Jobs', group: 'Automation', icon: '⏱', element: CronPage },
-  { id: 'channels', label: 'Channels', group: 'Automation', icon: '⇄', element: ChannelsPage },
+  { id: 'cron', label: 'Cron Jobs', group: 'Automation', icon: Clock, element: CronPage },
+  { id: 'channels', label: 'Channels', group: 'Automation', icon: Radio, element: ChannelsPage },
   // Developer tools
-  { id: 'tests', label: 'Tests', group: 'Developer tools', icon: '✓', element: TestsPage },
-  { id: 'debugger', label: 'Debugger', group: 'Developer tools', icon: '⌕', element: DebuggerPage },
-  { id: 'mcp', label: 'MCP', group: 'Developer tools', icon: '⧉', element: McpPage },
-  { id: 'skills', label: 'Skills', group: 'Developer tools', icon: '✸', element: SkillsPage },
+  {
+    id: 'tests',
+    label: 'Tests',
+    group: 'Developer tools',
+    icon: SquareCheckBig,
+    element: TestsPage,
+  },
+  { id: 'debugger', label: 'Debugger', group: 'Developer tools', icon: Bug, element: DebuggerPage },
+  { id: 'mcp', label: 'MCP', group: 'Developer tools', icon: Plug, element: McpPage },
+  { id: 'skills', label: 'Skills', group: 'Developer tools', icon: Sparkles, element: SkillsPage },
   // System
-  { id: 'security', label: 'Permissions', group: 'System', icon: '⛨', element: SecurityPage },
-  { id: 'config', label: 'Config', group: 'System', icon: '⚙', element: ConfigPage },
-  { id: 'debug', label: 'Diagnostics', group: 'System', icon: '❖', element: DebugPage },
-  { id: 'logs', label: 'Logs', group: 'System', icon: '▤', element: LogsPage },
-  { id: 'nodes', label: 'Devices', group: 'System', icon: '⬡', element: NodesPage },
-  { id: 'instances', label: 'Instances', group: 'System', icon: '❏', element: InstancesPage },
-  { id: 'docs', label: 'Docs', group: 'System', icon: '◈', element: DocsPage },
+  {
+    id: 'security',
+    label: 'Permissions',
+    group: 'System',
+    icon: ShieldCheck,
+    element: SecurityPage,
+  },
+  { id: 'config', label: 'Config', group: 'System', icon: Settings, element: ConfigPage },
+  { id: 'debug', label: 'Diagnostics', group: 'System', icon: Stethoscope, element: DebugPage },
+  { id: 'logs', label: 'Logs', group: 'System', icon: ScrollText, element: LogsPage },
+  { id: 'nodes', label: 'Devices', group: 'System', icon: Smartphone, element: NodesPage },
+  { id: 'instances', label: 'Instances', group: 'System', icon: Server, element: InstancesPage },
+  { id: 'docs', label: 'Docs', group: 'System', icon: BookOpen, element: DocsPage },
 ];
 
 const GROUPS = ['Home', 'Workspace', 'AI', 'Automation', 'Developer tools', 'System'];
@@ -182,34 +232,54 @@ function ApprovalsPill({ onClick }: { onClick: () => void }): JSX.Element | null
 function Shell(): JSX.Element {
   const [route, navigate] = useHashRoute();
   const [theme, toggleTheme] = useTheme();
-  const { status, assistantName } = useGateway();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const { status } = useGateway();
   const active = ROUTES.find((r) => r.id === route) ?? ROUTES[0]!;
   const Page = active.element;
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="brand">
-          <span className="mark" />
-          <span>{assistantName.toUpperCase()}</span>
-          <span className="sep">/</span>
-          <span className="sub">Gateway Dashboard</span>
-        </div>
+        <a className="brand" href="#/overview" aria-label="OpenPulse home">
+          <HaloMark className="halo" />
+          <span>
+            Open<span className="pulse">Pulse</span>
+          </span>
+        </a>
         <ProjectSwitcher onManage={() => navigate('projects')} />
         <div className="spacer" />
+        <button className="search-trigger" onClick={() => setPaletteOpen(true)}>
+          <Search size={15} aria-hidden />
+          Search anything…
+          <kbd>Ctrl K</kbd>
+        </button>
         <ApprovalsPill onClick={() => navigate('chat')} />
-        <span className="faint mono" style={{ fontSize: 11 }}>
-          {status.hello?.server.version ? `v${status.hello.server.version}` : ''}
-        </span>
         <HealthPill />
+        <button className="icon" onClick={() => navigate('config')} title="Settings">
+          <Settings aria-hidden />
+        </button>
         <button
           className="icon"
           onClick={toggleTheme}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         >
-          {theme === 'dark' ? '☀' : '☾'}
+          {theme === 'dark' ? <Sun aria-hidden /> : <Moon aria-hidden />}
         </button>
       </header>
+      {paletteOpen && (
+        <CommandPalette items={ROUTES} onPick={navigate} onClose={() => setPaletteOpen(false)} />
+      )}
 
       <nav className="sidebar">
         {GROUPS.map((group) => (
@@ -219,15 +289,22 @@ function Shell(): JSX.Element {
               <button
                 key={item.id}
                 className="nav-item"
+                title={item.label}
                 aria-current={item.id === active.id ? 'page' : undefined}
                 onClick={() => navigate(item.id)}
               >
-                <span aria-hidden>{item.icon}</span>
+                <item.icon aria-hidden strokeWidth={1.8} />
                 {item.label}
               </button>
             ))}
           </div>
         ))}
+        <div className="sidebar-foot">
+          <span>Local · Open source</span>
+          <span className="mono">
+            {status.hello?.server.version ? `v${status.hello.server.version}` : ''}
+          </span>
+        </div>
       </nav>
 
       <main className="main">

@@ -24,12 +24,15 @@ monaco.editor.defineTheme('openpulse-dark', {
   inherit: true,
   rules: [],
   colors: {
-    'editor.background': '#141417',
-    'editor.lineHighlightBackground': '#1c1c21',
-    'editorLineNumber.foreground': '#4a4a55',
-    'editorGutter.background': '#141417',
-    'diffEditor.insertedTextBackground': '#4fc8ae22',
-    'diffEditor.removedTextBackground': '#f2555a22',
+    'editor.background': '#0b1130',
+    'editor.lineHighlightBackground': '#121a40',
+    'editorLineNumber.foreground': '#4b5385',
+    'editorLineNumber.activeForeground': '#a6acd6',
+    'editorGutter.background': '#0b1130',
+    'editor.selectionBackground': '#7c3aed55',
+    'editorCursor.foreground': '#a5b4fc',
+    'diffEditor.insertedTextBackground': '#34d39922',
+    'diffEditor.removedTextBackground': '#f8717122',
   },
 });
 

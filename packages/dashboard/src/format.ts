@@ -106,3 +106,14 @@ export function parseLogLine(line: string): LogLine | undefined {
     return undefined;
   }
 }
+
+/** Name a conversation after what was asked — the words after a starter's "…:" line, if any. */
+export function titleFrom(text: string): string {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const line = lines.length > 1 && lines[0]!.endsWith(':') ? lines.slice(1).join(' ') : lines[0];
+  const clean = (line ?? text).replace(/\s+/g, ' ').trim();
+  return clean.length > 48 ? `${clean.slice(0, 47)}…` : clean;
+}

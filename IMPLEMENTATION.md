@@ -21,34 +21,34 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 
 - [x] **A — Repository audit**
 - [x] **B — Desktop foundation** (Electron shell, gateway supervision, tray, packaging config)
-- [ ] **C — Core developer environment** (workspaces, GitHub, editor, diff approval)
-- [ ] **D — Agent reliability** (permission enforcement, debugger, checkpoints)
-- [ ] **E — AI infrastructure** (model wizard, MCP, monitoring, skills registry)
-- [ ] **F — Developer automation** (multi-agent workflows, test runner)
+- [x] **C — Core developer environment** (workspaces, Git, editor, diff approval)
+- [x] **D — Agent reliability** (permission enforcement, debugger, checkpoints)
+- [x] **E — AI infrastructure** (model setup, MCP, monitoring, skills registry)
+- [x] **F — Developer automation** (multi-agent workflows, test runner)
 - [x] **G — SDK**
-- [~] **H — Unified dashboard navigation**
-- [ ] **I — Public website**
-- [ ] **J — Packaging and release**
+- [x] **H — Unified dashboard navigation** (and the "Halo" redesign)
+- [x] **I — Public website** (built and tested locally; not deployed — no hosting credentials)
+- [ ] **J — Packaging and release** (installer builds locally; CI and release workflow still to do)
 - [ ] **K — Final verification**
 
 ## Features
 
-| #   | Feature                      | Status | Notes                                                             |
-| --- | ---------------------------- | ------ | ----------------------------------------------------------------- |
-| 1   | Local AI model setup wizard  | [ ]    | detect Ollama/LM Studio, list models, test inference              |
-| 2   | Execution security           | [ ]    | workspace roots enforced in tools, not just command globs         |
-| 3   | GitHub workspace manager     | [ ]    | git CLI + GitHub API, no invented repo lists                      |
-| 4   | AI code editor               | [ ]    | Monaco over gateway file RPCs                                     |
-| 5   | Git diff approval            | [ ]    | real patches, per-file approve/reject, stale-patch guard          |
-| 6   | Agent debugger               | [ ]    | real agent events, sanitized export                               |
-| 7   | Checkpoints and rollback     | [ ]    | git-object snapshots incl. uncommitted work                       |
-| 8   | MCP support                  | [ ]    | stdio + HTTP transports, tools routed through the approval policy |
-| 9   | Multi-agent workflows        | [ ]    | roles, delegation, isolated worktrees                             |
-| 10  | Skills registry              | [ ]    | install/import/enable, no silent script execution                 |
-| 11  | Developer SDK                | [ ]    | `packages/sdk`, same WS protocol                                  |
-| 12  | Integrated test runner       | [ ]    | detect toolchain, stream output, AI fix proposals                 |
-| 13  | Model monitoring             | [ ]    | only metrics the runtime actually measures                        |
-| 14  | Unified workspace experience | [ ]    | navigation across all modules                                     |
+| #   | Feature                      | Status | Notes                                                                                                       |
+| --- | ---------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| 1   | Local AI model setup wizard  | [x]    | Ollama/LM Studio detection, live test prompt, default + ordered fallbacks (fallbacks now used by the agent) |
+| 2   | Execution security           | [x]    | modes, folder roots and deny list enforced in tools; shell approvals                                        |
+| 3   | GitHub workspace manager     | [x]    | projects, clone/status/branches/log via the git CLI; no GitHub API (not needed for these)                   |
+| 4   | AI code editor               | [x]    | offline Monaco, conflict detection; agent edits arrive as proposals                                         |
+| 5   | Git diff approval            | [x]    | side-by-side/inline/text, per-file approve/reject, stale-patch guard, checkpoint first                      |
+| 6   | Agent debugger               | [x]    | timeline from real events, kept across restarts, redacted export                                            |
+| 7   | Checkpoints and rollback     | [x]    | git objects under refs/openpulse incl. uncommitted work, restore preview                                    |
+| 8   | MCP support                  | [x]    | stdio + HTTP, per-tool switches, approval unless trusted                                                    |
+| 9   | Multi-agent workflows        | [x]    | roles, parallel steps, coding steps propose (no shared-file overwrites) instead of separate worktrees       |
+| 10  | Skills registry              | [x]    | install from git/folder, validate, update, remove; scripts listed, never run                                |
+| 11  | Developer SDK                | [x]    | `packages/sdk`, zero deps, builds for Node and browsers; not published to npm                               |
+| 12  | Integrated test runner       | [x]    | ecosystem detection, streamed output, agent fix as a change set                                             |
+| 13  | Model monitoring             | [x]    | measured values only; token counts as providers report them                                                 |
+| 14  | Unified workspace experience | [x]    | grouped navigation, Ctrl+K search, three-column chat with project/approvals/system context                  |
 
 ## Known blockers (require credentials or authorization)
 
@@ -193,3 +193,35 @@ hot reload, cron, skills gating, CLI + Control UI against a live gateway.
 - Fixed Monaco DiffEditor "TextModel got disposed" on unmount (keep models, dispose after the editor); verified in the browser: no console error after leaving Changes.
 - 2026-09-30: real agent runs via the SDK against Ollama qwen3:8b (one used the `read` tool, 21s) show up in Debugger and Monitoring. Token usage was always 0 because the OpenAI-compatible provider did not request stream usage; now `includeUsage: true` (verified: 4027 in / 153 out), and a provider that reports nothing shows "not reported" instead of 0. Debugger/Workflows list+detail layout no longer overflows horizontally. Test runner passes one quoted command line to the shell (no DEP0190 warning). `pnpm run check`: 303 tests pass.
 - Next: Phase I (website), Phase J (CI/release), docs, final report.
+
+### 2026-09-30 — Gateway fixes found while documenting, the website, and the "Halo" redesign
+
+- **Fallback models** were stored but never used. The runner now tries the next fallback when a model
+  fails before producing anything (unreachable, not installed, no key); explicit model requests don't
+  fall back. Recorded as a `model.fallback` event in the debugger. Tests: `model-fallback.test.ts`.
+- **Ollama context window.** Ollama loads models with 4,096 tokens and silently drops the start of longer
+  prompts; the agent's system prompt alone is ~4k, so every file read made qwen3:8b forget its task.
+  The built-in `ollama` provider now uses Ollama's native API (`ollama-ai-provider-v2`) and sends
+  `num_ctx` (default 16,384, `models.providers.<id>.contextTokens`). History is trimmed to fit the
+  model's window. Verified with real Ollama: `ollama ps` shows 16384, and qwen3:8b now reads a file and
+  calls `propose_change` (it didn't before). Tests: `ollama-native.test.ts` against a fake `/api/chat`.
+- **Active project in chat.** The chat agent is told which project is open, so "src/auth.js" resolves in
+  it (verified in the browser with qwen3:8b). Test in `agent.test.ts`.
+- **Debugger history** now survives gateway restarts (traces were written but never read back).
+- `propose_change` result wording made unambiguous (a small model claimed the change was "approved").
+- **SDK build** fixed: the published build had no Node types but read `process` directly.
+- **Website** (`apps/web`): static generator, pages /, /download, /features, /developers, /docs/* (14),
+  /changelog, /roadmap, /privacy, 404. Download page reads the live GitHub releases API — verified it
+  returns an empty list for this repo, so the page says no download is available yet; never links an
+  installer directly. No third-party scripts/fonts/cookies. Tests: release selection + built-site checks
+  (links, no secrets, no direct .exe links, no unconditional "signed" claims). Not deployed.
+- **"Halo" redesign** to the user's concept image: halo logo (`assets/brand`), app icon variants,
+  desktop `.ico` and loading/error screens, dashboard palette/top bar/sidebar icons/Ctrl+K search,
+  three-column Chat (conversations, welcome starters, capability chips, composer, Project Context /
+  Pending Approvals / System from live data), icon-rail layout down to the desktop app's 900px minimum,
+  website hero ("Build with AI on your machine.") with the real Chat screenshot, README logo + banner.
+  Screenshots are captured from the running app by `apps/web/scripts/capture-screenshots.ts`; brand
+  rasters by `scripts/render-brand.ts`.
+- `pnpm run check`: 339 tests pass, 0 lint errors. Installer and portable build rebuilt (unsigned —
+  `Get-AuthenticodeSignature` reports NotSigned).
+- Next: Phase J (CI + release workflow), then final verification.

@@ -1,13 +1,50 @@
-# OpenPulse
+<p align="center">
+  <img src="assets/brand/app-icon.png" alt="OpenPulse app icon" width="112" />
+</p>
 
-A self-hosted autonomous agent that lives where you already talk. One daemon runs on your machine with
-real access to your shell, files and browser; you reach it from Telegram, a terminal, or the Control UI
-in your browser. State is plain files under `~/.openpulse` — no database, nothing in the cloud but the
-model calls you configure.
+<h1 align="center">OpenPulse</h1>
+
+<p align="center">
+  <b>Your machine. Your models. Your AI workforce.</b><br />
+  A local-first AI developer platform: a Windows desktop app and gateway that run coding agents on
+  your own PC, with your own models, under rules you set.
+</p>
+
+<p align="center">
+  <a href="https://github.com/steventa2024-lgtm/openpulse/releases">Releases</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="packages/sdk">SDK</a> ·
+  <a href="IMPLEMENTATION.md">Progress</a>
+</p>
+
+<p align="center">
+  <img src="assets/brand/banner.png" alt="OpenPulse: the dashboard's chat screen on a laptop, beside the halo logo and the line Your machine. Your models. Your AI workforce." width="100%" />
+</p>
+
+OpenPulse runs agents on your machine with real access to your projects, shell and browser — inside
+permissions the gateway enforces. Use local models through Ollama or LM Studio (no API key needed) or a
+hosted provider you choose. Agents read your code, run your tests and **propose** changes as diffs; you
+review them file by file, and a checkpoint is taken before anything is applied. Reach it from the
+desktop app, a browser, the terminal, the SDK or Telegram. State is plain files under `~/.openpulse` —
+no account, no database, no OpenPulse cloud.
 
 > OpenPulse is a clean-room implementation written from public documentation of the OpenClaw project.
 > It shares that architecture — a gateway daemon, a Markdown workspace, skills, cron and heartbeats —
 > but none of its code.
+
+## The platform
+
+- **Desktop app (Windows).** Starts and supervises the gateway, attaches to one already running,
+  recovers from crashes, and keeps your data in `~/.openpulse` across installs and upgrades.
+- **Local models.** Detects Ollama and LM Studio, tests a model with a real prompt, and sets a default
+  plus ordered fallbacks. Ollama gets a 16k context window by default (configurable).
+- **Workspace.** Projects, Git, a Monaco editor, diff review with per-file approval, and checkpoints that
+  keep uncommitted work.
+- **Automation.** Multi-agent workflows (planner, coder, tester, reviewer), MCP servers, skills, cron.
+- **Developer tools.** Test runner with agent-proposed fixes, a run debugger, measured-only monitoring,
+  and a typed TypeScript SDK.
+- **Permissions.** Read-only, balanced or custom modes, folder boundaries, a secret deny list and shell
+  approvals — enforced in the tools themselves.
 
 ## What it does
 
@@ -46,6 +83,10 @@ Open <http://127.0.0.1:18789> for the Control UI, or stay in the terminal with `
 | `packages/gateway`   | The daemon: agent loop, tools, channels, cron, heartbeat, WebSocket server |
 | `packages/cli`       | `openpulse` — onboarding, daemon control, chat, and every gateway RPC      |
 | `packages/dashboard` | The Control UI (React + Vite), served by the gateway from the same port    |
+| `packages/sdk`       | `@openpulse/sdk` — the typed TypeScript/JavaScript client (not on npm yet) |
+| `apps/desktop`       | The Windows desktop app (Electron) and its installer configuration         |
+| `apps/web`           | The public website: static pages, docs, and a download page fed by GitHub  |
+| `assets/brand`       | The halo logo and app icon sources, and the README banner                  |
 
 ## The gateway
 
