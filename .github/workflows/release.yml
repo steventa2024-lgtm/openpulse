@@ -1,0 +1,137 @@
+name: Release
+
+# Publishing a release:
+#   node apps/desktop/scripts/release/prepare.mjs set-version 0.2.0
+#   git commit -am "Release 0.2.0" && git tag v0.2.0 && git push origin main v0.2.0
+#
+# The installer is code-signed only when the CSC_LINK (base64 .pfx or URL) and CSC_KEY_PASSWORD
+# repository secrets exist. The release notes state what the binaries actually are, read with
+# Get-AuthenticodeSignature after packaging — never what was configured.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing tag to (re)build, e.g. v0.2.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build, sign if configured, and publish
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          # Full history, so the notes can list changes since the previous tag.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Check the tag matches every package version
+        run: node apps/desktop/scripts/release/prepare.mjs check-version $env:TAG
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Git identity for the checkpoint and git tests
+        run: |
+          git config --global user.name "OpenPulse CI"
+          git config --global user.email "ci@openpulse.invalid"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Format, lint, typecheck and test
+        run: pnpm run check
+
+      - name: Package the installer and portable build
+        shell: pwsh
+        env:
+          SIGNING_CERT: ${{ secrets.CSC_LINK }}
+          SIGNING_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if ($env:SIGNING_CERT) {
+            $env:CSC_LINK = $env:SIGNING_CERT
+            $env:CSC_KEY_PASSWORD = $env:SIGNING_PASSWORD
+            "Signing certificate configured; electron-builder will sign."
+          } else {
+            $env:CSC_IDENTITY_AUTO_DISCOVERY = 'false'
+            "No signing certificate configured; building unsigned."
+          }
+          pnpm --filter @openpulse/desktop exec electron-builder --win --publish never
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Read the signing status from the binaries
+        id: signing
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem apps/desktop/release/OpenPulse-*-x64.exe)
+          if ($files.Count -eq 0) { throw 'no binaries were built' }
+          $unsigned = 0
+          foreach ($file in $files) {
+            $state = (Get-AuthenticodeSignature $file.FullName).Status
+            "$($file.Name): $state"
+            if ($state -ne 'Valid') { $unsigned++ }
+          }
+          # Signed only if every binary carries a valid signature.
+          $status = if ($unsigned -eq 0) { 'signed' } else { 'unsigned' }
+          "Code signing: $status"
+          "status=$status" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Find the previous tag
+        id: previous
+        shell: pwsh
+        run: |
+          $previous = git describe --tags --abbrev=0 "$env:TAG^" 2>$null
+          if ($LASTEXITCODE -ne 0) { $previous = '' }
+          "tag=$previous" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "previous tag: $previous"
+          # git describe fails when there is no earlier tag; that is expected, not a failed step.
+          exit 0
+
+      - name: Write checksums and release notes
+        run: node apps/desktop/scripts/release/prepare.mjs assemble $env:TAG ${{ steps.signing.outputs.status }} ${{ steps.previous.outputs.tag }}
+
+      - name: Publish the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $dir = 'apps/desktop/release'
+          $assets = @(
+            "$dir/OpenPulse-Setup-$version-x64.exe",
+            "$dir/OpenPulse-Portable-$version-x64.exe",
+            "$dir/SHA256SUMS.txt"
+          )
+          $prerelease = if ($version.Contains('-')) { @('--prerelease') } else { @() }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # Re-running for an existing release replaces its files and notes.
+            gh release upload $env:TAG @assets --clobber
+            gh release edit $env:TAG --notes-file "$dir/release-notes.md"
+          } else {
+            gh release create $env:TAG @assets --title "OpenPulse $version" --notes-file "$dir/release-notes.md" @prerelease
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

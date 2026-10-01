@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Build, lint, typecheck and test
+    # Windows first: it is the platform the desktop app ships for and the one the suite is run on.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Git identity for the checkpoint and git tests
+        run: |
+          git config --global user.name "OpenPulse CI"
+          git config --global user.email "ci@openpulse.invalid"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Format, lint, typecheck and test
+        run: pnpm run check
+
+  desktop:
+    name: Package the desktop app (unpacked)
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package without an installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm --filter @openpulse/desktop exec electron-builder --win --dir --publish never
+
+      - name: Check the package contents
+        shell: pwsh
+        run: |
+          $app = 'apps/desktop/release/win-unpacked'
+          foreach ($path in @(
+            "$app/OpenPulse.exe",
+            "$app/resources/gateway/main.mjs",
+            "$app/resources/gateway/vendor/playwright-core/index.mjs",
+            "$app/resources/dashboard/index.html",
+            "$app/resources/icon.ico"
+          )) {
+            if (-not (Test-Path $path)) { throw "missing from the package: $path" }
+          }
+          "package contents OK"

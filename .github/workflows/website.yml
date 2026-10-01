@@ -1,0 +1,63 @@
+name: Website
+
+# Deploys apps/web to GitHub Pages. Off until the repository owner turns it on:
+#   1. Settings → Pages → Build and deployment → Source: GitHub Actions
+#   2. Settings → Secrets and variables → Actions → Variables → DEPLOY_WEBSITE = true
+# The site is then served at https://<owner>.github.io/<repo>/.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: vars.DEPLOY_WEBSITE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install the website's dependencies only
+        run: pnpm install --frozen-lockfile --filter "@openpulse/web..."
+
+      - name: Test
+        run: pnpm --filter @openpulse/web test
+
+      - name: Build for the project path
+        env:
+          WEB_BASE: /${{ github.event.repository.name }}/
+        run: pnpm --filter @openpulse/web run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

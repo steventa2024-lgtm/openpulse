@@ -33,8 +33,20 @@ await build({
   target: 'node22',
   format: 'esm',
   // playwright-core loads its own driver assets and optional transports by path at runtime, so it
-  // is shipped as a real package folder next to the bundle instead of being inlined.
-  external: ['playwright-core'],
+  // is shipped as a real package folder next to the bundle instead of being inlined. It goes in
+  // vendor/, not node_modules/, because electron-builder will not copy a node_modules folder into
+  // the app's resources; the import is rewritten to that relative path.
+  plugins: [
+    {
+      name: 'vendor-playwright-core',
+      setup(pluginBuild) {
+        pluginBuild.onResolve({ filter: /^playwright-core$/ }, () => ({
+          path: './vendor/playwright-core/index.mjs',
+          external: true,
+        }));
+      },
+    },
+  ],
   banner: {
     js: [
       "import { createRequire as __openpulseCreateRequire } from 'node:module';",
@@ -50,9 +62,8 @@ await build({
   logLevel: 'info',
 });
 
-// Node resolves bare imports from node_modules next to the importing file, so the external
-// packages live beside the bundle.
-const vendorDir = path.join(outDir, 'gateway', 'node_modules');
+// The external package lives beside the bundle, where the rewritten import points.
+const vendorDir = path.join(outDir, 'gateway', 'vendor');
 await mkdir(vendorDir, { recursive: true });
 const playwrightCore = resolvePackageDir('playwright-core', path.join(repo, 'packages', 'gateway'));
 await cp(playwrightCore, path.join(vendorDir, 'playwright-core'), { recursive: true });
